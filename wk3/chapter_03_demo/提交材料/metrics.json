@@ -1,0 +1,70 @@
+{
+  "before": {
+    "test_acc": 0.9692,
+    "test_loss": 0.09761529672667384,
+    "external_acc": 0.8,
+    "external_details": [
+      {
+        "file": "1_1.png",
+        "true": 1,
+        "pred": 1
+      },
+      {
+        "file": "1_2.png",
+        "true": 1,
+        "pred": 2
+      },
+      {
+        "file": "1_3.png",
+        "true": 1,
+        "pred": 1
+      },
+      {
+        "file": "2_1.png",
+        "true": 2,
+        "pred": 2
+      },
+      {
+        "file": "2_2.png",
+        "true": 2,
+        "pred": 2
+      }
+    ],
+    "curve_path": "G:\\学业\\2025大一下\\人工智能基础\\wk3\\chapter_03_demo\\提交材料\\调参前_曲线图.png",
+    "pred_path": "G:\\学业\\2025大一下\\人工智能基础\\wk3\\chapter_03_demo\\提交材料\\调参前_预测图.png"
+  },
+  "after": {
+    "test_acc": 0.9797,
+    "test_loss": 0.06778334934123559,
+    "external_acc": 0.8,
+    "external_details": [
+      {
+        "file": "1_1.png",
+        "true": 1,
+        "pred": 1
+      },
+      {
+        "file": "1_2.png",
+        "true": 1,
+        "pred": 3
+      },
+      {
+        "file": "1_3.png",
+        "true": 1,
+        "pred": 1
+      },
+      {
+        "file": "2_1.png",
+        "true": 2,
+        "pred": 2
+      },
+      {
+        "file": "2_2.png",
+        "true": 2,
+        "pred": 2
+      }
+    ],
+    "curve_path": "G:\\学业\\2025大一下\\人工智能基础\\wk3\\chapter_03_demo\\提交材料\\调参后_曲线图.png",
+    "pred_path": "G:\\学业\\2025大一下\\人工智能基础\\wk3\\chapter_03_demo\\提交材料\\调参后_预测图.png"
+  }
+}
