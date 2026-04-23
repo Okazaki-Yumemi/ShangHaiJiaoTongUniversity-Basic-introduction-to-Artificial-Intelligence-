@@ -1,0 +1,111 @@
+{
+  "device": "cpu",
+  "classes": [
+    "apple",
+    "avocado",
+    "banana",
+    "cherry",
+    "kiwi",
+    "mango",
+    "orange",
+    "pinenapple",
+    "strawberries",
+    "watermelon"
+  ],
+  "baseline": {
+    "best_acc": 0.8439024390243902,
+    "best_loss": 0.5262108051486132,
+    "top_confusions": [
+      {
+        "true_idx": 5,
+        "pred_idx": 6,
+        "count": 14,
+        "true_name": "mango",
+        "pred_name": "orange"
+      },
+      {
+        "true_idx": 9,
+        "pred_idx": 8,
+        "count": 12,
+        "true_name": "watermelon",
+        "pred_name": "strawberries"
+      },
+      {
+        "true_idx": 8,
+        "pred_idx": 3,
+        "count": 11,
+        "true_name": "strawberries",
+        "pred_name": "cherry"
+      },
+      {
+        "true_idx": 9,
+        "pred_idx": 3,
+        "count": 11,
+        "true_name": "watermelon",
+        "pred_name": "cherry"
+      },
+      {
+        "true_idx": 0,
+        "pred_idx": 3,
+        "count": 10,
+        "true_name": "apple",
+        "pred_name": "cherry"
+      },
+      {
+        "true_idx": 5,
+        "pred_idx": 1,
+        "count": 10,
+        "true_name": "mango",
+        "pred_name": "avocado"
+      }
+    ]
+  },
+  "improved": {
+    "best_acc": 0.9170731707317074,
+    "best_loss": 0.31409088908172234,
+    "top_confusions": [
+      {
+        "true_idx": 8,
+        "pred_idx": 3,
+        "count": 11,
+        "true_name": "strawberries",
+        "pred_name": "cherry"
+      },
+      {
+        "true_idx": 9,
+        "pred_idx": 3,
+        "count": 10,
+        "true_name": "watermelon",
+        "pred_name": "cherry"
+      },
+      {
+        "true_idx": 0,
+        "pred_idx": 3,
+        "count": 6,
+        "true_name": "apple",
+        "pred_name": "cherry"
+      },
+      {
+        "true_idx": 3,
+        "pred_idx": 0,
+        "count": 6,
+        "true_name": "cherry",
+        "pred_name": "apple"
+      },
+      {
+        "true_idx": 5,
+        "pred_idx": 6,
+        "count": 6,
+        "true_name": "mango",
+        "pred_name": "orange"
+      },
+      {
+        "true_idx": 2,
+        "pred_idx": 5,
+        "count": 4,
+        "true_name": "banana",
+        "pred_name": "mango"
+      }
+    ]
+  }
+}

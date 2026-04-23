@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>ResNet18 水果分类分析报告</title>
+  <style>
+    body {
+      font-family: "Microsoft YaHei", Arial, sans-serif;
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+      line-height: 1.6;
+      color: #222;
+    }
+    h1, h2 {
+      margin: 0 0 12px;
+    }
+    h2 {
+      margin-top: 28px;
+      font-size: 20px;
+    }
+    p {
+      margin: 8px 0;
+    }
+    img {
+      width: 100%;
+      border: 1px solid #ccc;
+      margin: 8px 0 4px;
+    }
+    .caption {
+      color: #555;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    ul {
+      margin: 8px 0 8px 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ResNet18 水果分类分析报告</h1>
+  <p>我先复现了教程中的基线 ResNet18 结果。基线配置为冻结主干网络、只训练最后的全连接层，训练 5 个 epoch，测试准确率为 <b>84.39%</b>。</p>
+  <p>从基线混淆矩阵可以看出，<b>mango -&gt; orange</b> 和 <b>strawberries -&gt; cherry</b> 是比较明显的易混淆类别；另外 <b>watermelon -&gt; strawberries</b> 也较多，说明模型容易被颜色块、局部纹理和裁剪后的局部视图误导。</p>
+
+  <h2>图 1 基线混淆矩阵与错误样例</h2>
+  <img src="figure1_baseline_confusion_and_errors.png" alt="基线混淆矩阵与错误样例" />
+  <p class="caption">基线结果显示模型主要依赖局部颜色和纹理。明显问题包括 mango 被分成 orange，strawberries 被分成 cherry，说明只训练最后一层时高层特征还没有充分适应水果数据集。</p>
+
+  <h2>图 2 优化后的关键结果</h2>
+  <img src="figure2_training_compare.png" alt="训练测试对比图" />
+  <p class="caption">我做了两项小幅优化：一是解冻 ResNet18 的 <code>layer4</code> 和 <code>fc</code>；二是把训练轮数从 5 增加到 8，并使用分组学习率微调。优化后测试准确率提高到 <b>91.71%</b>，相比基线提升 <b>7.32</b> 个百分点。</p>
+
+  <h2>图 3 优化后的混淆矩阵与修正样例</h2>
+  <img src="figure3_improved_confusion_and_corrected.png" alt="优化后混淆矩阵与修正样例" />
+  <p class="caption">和原来的混淆矩阵相比，<b>mango -&gt; orange</b> 从 14 次降到 6 次，<b>watermelon -&gt; strawberries</b> 从 12 次降到 3 次，一些原来分错的样本现在被正确分类。虽然 strawberries 和 cherry 之间仍然存在混淆，但整体准确率和部分类别的概率分布已经明显改善。</p>
+
+  <h2>简要结论</h2>
+  <ul>
+    <li>观察到的问题：基线模型最容易混淆颜色和局部纹理接近的水果类别。</li>
+    <li>做出的优化：解冻最后一个残差模块并增加训练轮数，采用更小的 backbone 学习率进行微调。</li>
+    <li>优化后的变化：总体测试准确率提高，部分原来分错较多的类别混淆减轻，且有错误样例被修正。</li>
+  </ul>
+</body>
+</html>
