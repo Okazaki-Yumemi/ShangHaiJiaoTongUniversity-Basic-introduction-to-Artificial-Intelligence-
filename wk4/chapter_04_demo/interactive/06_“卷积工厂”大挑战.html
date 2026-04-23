@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卷积工厂大挑战 - Convolution Factory</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --accent: #f59e0b;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 800px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* HUD & Stats */
+        .hud {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: var(--card);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .budget-bar-container {
+            grid-column: span 2;
+            height: 12px;
+            background: #334155;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        #budget-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--secondary), var(--accent), var(--danger));
+            transition: width 0.3s ease;
+        }
+
+        /* Factory Floor (Simulation Area) */
+        .factory-floor {
+            height: 300px;
+            background: #020617;
+            border-radius: 16px;
+            margin-bottom: 20px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 0 40px;
+            overflow-x: auto;
+            border: 2px dashed #334155;
+            scrollbar-width: thin;
+        }
+
+        .layer-node {
+            min-width: 80px;
+            height: 180px;
+            background: var(--card);
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            margin-right: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            animation: slideIn 0.3s ease-out;
+            flex-shrink: 0;
+        }
+
+        .layer-node::after {
+            content: '➔';
+            position: absolute;
+            right: -30px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #475569;
+            font-size: 20px;
+        }
+
+        .layer-node:last-child::after { content: ''; }
+
+        .layer-type {
+            font-size: 0.7rem;
+            font-weight: bold;
+            background: var(--primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .feature-map-viz {
+            width: 50px;
+            height: 50px;
+            background: rgba(79, 70, 229, 0.2);
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            transition: all 0.3s ease;
+        }
+
+        .layer-info {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            text-align: center;
+            color: #cbd5e1;
+        }
+
+        /* Controls */
+        .controls {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label { font-size: 0.9rem; color: #94a3b8; }
+
+        select, button {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border: none;
+            font-weight: bold;
+            transition: transform 0.1s, background 0.2s;
+            grid-column: span 2;
+        }
+
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-primary:hover { background: var(--primary-dark); }
+
+        .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+
+        /* Overlays */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .hidden { display: none !important; }
+
+        .card-anim { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+        @keyframes pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(50px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .achievement-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--accent);
+            color: black;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            transform: translateY(100px);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .show-toast { transform: translateY(0); }
+
+        .target-box {
+            border: 2px solid var(--secondary);
+            color: var(--secondary);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="hud">
+        <div class="stat-box">
+            <span class="stat-label">当前输出尺寸 (H x W x C)</span>
+            <span id="current-dim" class="stat-value">32 x 32 x 3</span>
+        </div>
+        <div class="stat-box" style="text-align: right;">
+            <span class="stat-label">参数预算消耗</span>
+            <span id="param-count" class="stat-value">0 / 50,000</span>
+        </div>
+        <div class="budget-bar-container">
+            <div id="budget-fill"></div>
+        </div>
+    </div>
+
+    <div class="target-box">
+        🎯 <strong>最终目标：</strong> 获得 <span id="target-dim-text">1 x 1 x 10</span> 的特征图
+    </div>
+
+    <div class="factory-floor" id="factory-floor">
+        <!-- Layer nodes will be injected here -->
+        <div class="layer-node">
+            <div class="layer-type" style="background: #64748b;">INPUT</div>
+            <div class="feature-map-viz" style="width: 50px; height: 50px;">32²</div>
+            <div class="layer-info">RGB Image<br>32x32x3</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>卷积核数量 (Filters)</label>
+            <select id="ctrl-filters">
+                <option value="16">16</option>
+                <option value="32">32</option>
+                <option value="64">64</option>
+                <option value="128">128</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>卷积核大小 (Kernel)</label>
+            <select id="ctrl-kernel">
+                <option value="3">3 x 3</option>
+                <option value="5">5 x 5</option>
+                <option value="1">1 x 1</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>步幅 (Stride)</label>
+            <select id="ctrl-stride">
+                <option value="1">1</option>
+                <option value="2">2</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>操作类型</label>
+            <select id="ctrl-type">
+                <option value="conv">卷积层 (Conv2D)</option>
+                <option value="pool">池化层 (Max Pool 2x2)</option>
+            </select>
+        </div>
+        <button class="btn-primary" onclick="addLayer()">部署该层 🏗️</button>
+        <button class="btn-danger" onclick="popLayer()">撤销最后一层 ↩️</button>
+    </div>
+</div>
+
+<!-- Overlays -->
+<div id="start-screen" class="overlay">
+    <div class="card-anim">
+        <h1>🏗️ 卷积工厂大挑战</h1>
+        <p>作为架构师，你需要设计一个CNN模型。<br>在预算范围内，将输入图像转换为分类向量。</p>
+        <div style="background: var(--card); padding: 20px; border-radius: 12px; margin: 20px 0;">
+            <p><strong>第一关：MNIST 简化版</strong></p>
+            <p>输入: 32x32x3 | 目标: 1x1x10</p>
+            <p>预算: 50,000 参数</p>
+        </div>
+        <button onclick="startGame()" style="font-size: 1.2rem; padding: 15px 40px; background: var(--secondary); border: none; border-radius: 30px; color: white; cursor: pointer;">
+            开始设计
+        </button>
+    </div>
+</div>
+
+<div id="win-screen" class="overlay hidden">
+    <div class="card-anim">
+        <h1 style="color: var(--secondary)">🎉 成功着陆！</h1>
+        <p id="win-message"></p>
+        <div id="achievements-list"></div>
+        <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 30px;">下一关</button>
+    </div>
+</div>
+
+<div id="fail-screen" class="overlay hidden">
+    <div class="card-anim">
+        <h1 style="color: var(--danger)">💥 工厂宕机</h1>
+        <p id="fail-message"></p>
+        <button onclick="resetGame()" style="padding: 10px 30px;">重新调整</button>
+    </div>
+</div>
+
+<div id="toast" class="achievement-toast">成就解锁: 软着陆! 🛬</div>
+
+<script type="application/json" id="widget-config">
+{
+  "type": "game",
+  "gameType": "strategy",
+  "levels": [
+    { "id": 1, "input": [32, 32, 3], "target": [1, 1, 10], "budget": 50000 },
+    { "id": 2, "input": [64, 64, 3], "target": [1, 1, 64], "budget": 100000 }
+  ]
+}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Game State
+    let gameState = {
+        level: 1,
+        input: { h: 32, w: 32, c: 3 },
+        target: { h: 1, w: 1, c: 10 },
+        budget: 50000,
+        layers: [],
+        currentParams: 0,
+        isGameOver: false
+    };
+
+    const config = JSON.parse(document.getElementById('widget-config').textContent);
+
+    window.startGame = function() {
+        document.getElementById('start-screen').classList.add('hidden');
+        resetGame();
+    };
+
+    window.resetGame = function() {
+        gameState.layers = [];
+        gameState.currentParams = 0;
+        gameState.isGameOver = false;
+        document.getElementById('fail-screen').classList.add('hidden');
+        document.getElementById('win-screen').classList.add('hidden');
+        updateUI();
+    };
+
+    window.addLayer = function() {
+        if (gameState.isGameOver) return;
+
+        const type = document.getElementById('ctrl-type').value;
+        const filters = parseInt(document.getElementById('ctrl-filters').value);
+        const kernel = parseInt(document.getElementById('ctrl-kernel').value);
+        const stride = parseInt(document.getElementById('ctrl-stride').value);
+
+        const lastOutput = gameState.layers.length > 0 
+            ? gameState.layers[gameState.layers.length - 1].output 
+            : gameState.input;
+
+        let newH, newW, newC, params = 0;
+
+        if (type === 'conv') {
+            // Padding is 'valid' for simplicity in this game
+            newH = Math.floor((lastOutput.h - kernel) / stride) + 1;
+            newW = Math.floor((lastOutput.w - kernel) / stride) + 1;
+            newC = filters;
+            // Params = (k*k*Cin + 1) * Cout
+            params = (kernel * kernel * lastOutput.c + 1) * filters;
+        } else {
+            // Pool 2x2
+            newH = Math.floor(lastOutput.h / 2);
+            newW = Math.floor(lastOutput.w / 2);
+            newC = lastOutput.c;
+            params = 0;
+        }
+
+        if (newH <= 0 || newW <= 0) {
+            showToast("⚠️ 尺寸溢出！特征图不能小于1x1", "danger");
+            return;
+        }
+
+        const newLayer = {
+            type: type.toUpperCase(),
+            kernel,
+            stride,
+            filters: type === 'conv' ? filters : '-',
+            output: { h: newH, w: newW, c: newC },
+            params
+        };
+
+        gameState.layers.push(newLayer);
+        gameState.currentParams += params;
+
+        checkGameState();
+        updateUI();
+    };
+
+    window.popLayer = function() {
+        if (gameState.layers.length > 0) {
+            const removed = gameState.layers.pop();
+            gameState.currentParams -= removed.params;
+            updateUI();
+        }
+    };
+
+    function checkGameState() {
+        if (gameState.currentParams > gameState.budget) {
+            endGame(false, "预算超支！你的工厂破产了。");
+            return;
+        }
+
+        const lastOutput = gameState.layers[gameState.layers.length - 1].output;
+        if (lastOutput.h === gameState.target.h && 
+            lastOutput.w === gameState.target.w && 
+            lastOutput.c === gameState.target.c) {
+            endGame(true, `完美匹配！你用 ${gameState.currentParams.toLocaleString()} 个参数完成了设计。`);
+        } else if (lastOutput.h < gameState.target.h || lastOutput.w < gameState.target.w) {
+            endGame(false, "尺寸缩减过度，无法达到目标。");
+        }
+    }
+
+    function endGame(success, message) {
+        gameState.isGameOver = true;
+        if (success) {
+            document.getElementById('win-screen').classList.remove('hidden');
+            document.getElementById('win-message').innerText = message;
+            
+            // Check achievements
+            let achievements = [];
+            if (gameState.currentParams < gameState.budget * 0.5) achievements.push("🏆 极简主义者 (50% 预算内完成)");
+            if (gameState.layers.length > 5) achievements.push("🏗️ 深层架构师 (超过5层设计)");
+            
+            document.getElementById('achievements-list').innerHTML = achievements.map(a => `<p>${a}</p>`).join('');
+            saveProgress();
+        } else {
+            document.getElementById('fail-screen').classList.remove('hidden');
+            document.getElementById('fail-message').innerText = message;
+        }
+    }
+
+    function updateUI() {
+        // Update Stats
+        const lastOutput = gameState.layers.length > 0 
+            ? gameState.layers[gameState.layers.length - 1].output 
+            : gameState.input;
+
+        document.getElementById('current-dim').innerText = `${lastOutput.h} x ${lastOutput.w} x ${lastOutput.c}`;
+        document.getElementById('param-count').innerText = `${gameState.currentParams.toLocaleString()} / ${gameState.budget.toLocaleString()}`;
+        
+        const budgetPercent = (gameState.currentParams / gameState.budget) * 100;
+        const fill = document.getElementById('budget-fill');
+        fill.style.width = Math.min(budgetPercent, 100) + '%';
+
+        // Update Factory Floor
+        const floor = document.getElementById('factory-floor');
+        floor.innerHTML = `
+            <div class="layer-node">
+                <div class="layer-type" style="background: #64748b;">INPUT</div>
+                <div class="feature-map-viz" style="width: 50px; height: 50px; opacity: 0.8">
+                    ${gameState.input.h}²
+                </div>
+                <div class="layer-info">${gameState.input.h}x${gameState.input.w}x${gameState.input.c}</div>
+            </div>
+        `;
+
+        gameState.layers.forEach((layer, index) => {
+            const vizSize = Math.max(10, (layer.output.h / gameState.input.h) * 50);
+            const node = document.createElement('div');
+            node.className = 'layer-node';
+            node.innerHTML = `
+                <div class="layer-type">${layer.type}</div>
+                <div class="feature-map-viz" style="width: ${vizSize}px; height: ${vizSize}px;">
+                    ${layer.output.h}
+                </div>
+                <div class="layer-info">
+                    ${layer.output.h}x${layer.output.w}x${layer.output.c}<br>
+                    <span style="color: #94a3b8; font-size: 0.65rem">+${layer.params.toLocaleString()} params</span>
+                </div>
+            `;
+            floor.appendChild(node);
+        });
+
+        // Scroll to end
+        floor.scrollLeft = floor.scrollWidth;
+    }
+
+    function showToast(text, type) {
+        const toast = document.getElementById('toast');
+        toast.innerText = text;
+        toast.style.background = type === 'danger' ? 'var(--danger)' : 'var(--accent)';
+        toast.classList.add('show-toast');
+        setTimeout(() => toast.classList.remove('show-toast'), 3000);
+    }
+
+    function saveProgress() {
+        const highscore = localStorage.getItem('conv_factory_score') || 999999;
+        if (gameState.currentParams < highscore) {
+            localStorage.setItem('conv_factory_score', gameState.currentParams);
+        }
+    }
+});
+</script>
+</body>
+</html>

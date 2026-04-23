@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全连接层 vs 卷积层参数对比</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-light: #c4b5fd;
+            --secondary: #10b981;
+            --dark: #1f2937;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            touch-action: manipulation;
+        }
+
+        .control-panel {
+            background: white;
+            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 50;
+        }
+
+        .canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background: #111827;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .slider-thumb::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(4px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        @keyframes pulse-highlight {
+            0%, 100% { outline-color: rgba(139, 92, 246, 0.8); }
+            50% { outline-color: rgba(139, 92, 246, 0.4); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .teacher-annotation {
+            pointer-events: none;
+        }
+
+        .hidden-mobile {
+            display: none;
+        }
+        @media (min-width: 768px) {
+            .hidden-mobile {
+                display: block;
+            }
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+<script type="application/json" id="widget-config">
+{
+  "type": "simulation",
+  "concept": "parameter_comparison",
+  "description": "对比全连接层与卷积层的参数规模，直观展示权重共享的压缩效果",
+  "variables": [
+    { "name": "image_resolution", "label": "图像分辨率", "min": 8, "max": 64, "default": 28, "unit": "px" },
+    { "name": "hidden_units", "label": "输出节点数/卷积核数", "min": 2, "max": 64, "default": 16, "unit": "个" },
+    { "name": "kernel_size", "label": "卷积核尺寸", "min": 1, "max": 11, "default": 3, "unit": "px" }
+  ],
+  "presets": [
+    { "name": "MNIST标准", "variables": { "image_resolution": 28, "hidden_units": 32, "kernel_size": 3 } },
+    { "name": "高清大图", "variables": { "image_resolution": 64, "hidden_units": 64, "kernel_size": 5 } },
+    { "name": "微小算力", "variables": { "image_resolution": 8, "hidden_units": 8, "kernel_size": 1 } }
+  ]
+}
+</script>
+
+<!-- Header Info -->
+<div class="bg-white p-3 border-b flex justify-between items-center shadow-sm">
+    <h1 class="text-lg font-bold text-gray-800">全连接 vs 卷积：参数对比</h1>
+    <div class="flex gap-2">
+        <button id="reset-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition active:scale-95 text-sm font-medium">重置</button>
+        <button id="main-btn" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition active:scale-95 text-sm font-bold shadow-md">启动</button>
+    </div>
+</div>
+
+<!-- Main Simulation Area -->
+<div class="canvas-container">
+    <!-- Top Stats -->
+    <div class="grid grid-cols-2 gap-4 p-4">
+        <div class="stat-card p-3">
+            <div class="text-xs text-indigo-300 font-bold uppercase tracking-wider">全连接层 (Fully Connected)</div>
+            <div class="text-2xl font-mono text-white mt-1" id="fc-params-display">0</div>
+            <div class="text-[10px] text-gray-400 mt-1">计算: (像素 × 节点) + 偏置</div>
+        </div>
+        <div class="stat-card p-3">
+            <div class="text-xs text-emerald-300 font-bold uppercase tracking-wider">卷积层 (Convolutional)</div>
+            <div class="text-2xl font-mono text-white mt-1" id="cnn-params-display">0</div>
+            <div class="text-[10px] text-gray-400 mt-1">计算: (核尺寸² × 核数) + 偏置</div>
+        </div>
+    </div>
+
+    <canvas id="simCanvas" class="flex-1 w-full"></canvas>
+
+    <!-- Overlay Info -->
+    <div id="status-overlay" class="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-black/50 text-white text-xs backdrop-blur-md border border-white/10 hidden">
+        正在模拟数据流...
+    </div>
+</div>
+
+<!-- Control Panel -->
+<div class="control-panel p-4 md:p-6 overflow-y-auto max-h-[45vh] md:max-h-none">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <!-- Resolution Slider -->
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <label class="text-sm font-bold text-gray-700">图像分辨率 (N×N)</label>
+                <span class="text-indigo-600 font-mono font-bold" id="image_resolution-display">28x28</span>
+            </div>
+            <input type="range" id="image_resolution-slider" data-var="image_resolution" min="8" max="64" value="28" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+        </div>
+
+        <!-- Hidden Units Slider -->
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <label class="text-sm font-bold text-gray-700">输出节点/核数</label>
+                <span class="text-indigo-600 font-mono font-bold" id="hidden_units-display">16</span>
+            </div>
+            <input type="range" id="hidden_units-slider" data-var="hidden_units" min="2" max="64" value="16" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+        </div>
+
+        <!-- Kernel Size Slider -->
+        <div class="space-y-3">
+            <div class="flex justify-between items-center">
+                <label class="text-sm font-bold text-gray-700">卷积核尺寸 (K×K)</label>
+                <span class="text-indigo-600 font-mono font-bold" id="kernel_size-display">3x3</span>
+            </div>
+            <input type="range" id="kernel_size-slider" data-var="kernel_size" min="1" max="11" step="2" value="3" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+        </div>
+    </div>
+
+    <!-- Presets -->
+    <div class="mt-6 flex flex-wrap gap-2 justify-center border-t pt-4">
+        <span class="text-xs text-gray-400 w-full text-center mb-1">快捷预设</span>
+        <button onclick="applyPreset(28, 32, 3)" class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs font-medium hover:bg-white hover:shadow-sm">MNIST标准 (28px)</button>
+        <button onclick="applyPreset(64, 64, 5)" class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs font-medium hover:bg-white hover:shadow-sm">高清图 (64px)</button>
+        <button onclick="applyPreset(8, 8, 1)" class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-xs font-medium hover:bg-white hover:shadow-sm">微小网络</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const mainBtn = document.getElementById('main-btn');
+    const resetBtn = document.getElementById('reset-btn');
+
+    // Simulation State
+    let state = {
+        running: false,
+        paused: false,
+        ended: false,
+        progress: 0,
+        lastTime: 0
+    };
+
+    // Configuration
+    let config = {
+        image_resolution: 28,
+        hidden_units: 16,
+        kernel_size: 3
+    };
+
+    // Parameters display
+    const fcDisplay = document.getElementById('fc-params-display');
+    const cnnDisplay = document.getElementById('cnn-params-display');
+
+    function init() {
+        resize();
+        window.addEventListener('resize', resize);
+        
+        // Setup control listeners
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const val = parseInt(e.target.value);
+                const key = e.target.getAttribute('data-var');
+                config[key] = val;
+                
+                // Update text display
+                const display = document.getElementById(key + '-display');
+                if (key === 'image_resolution') display.innerText = `${val}x${val}`;
+                else if (key === 'kernel_size') display.innerText = `${val}x${val}`;
+                else display.innerText = val;
+                
+                calculateParams();
+                resetSimulation();
+            });
+        });
+
+        mainBtn.addEventListener('click', handleMainButton);
+        resetBtn.addEventListener('click', resetSimulation);
+        
+        calculateParams();
+        requestAnimationFrame(animate);
+    }
+
+    function calculateParams() {
+        const fc = (config.image_resolution * config.image_resolution) * config.hidden_units + config.hidden_units;
+        const cnn = (config.kernel_size * config.kernel_size) * config.hidden_units + config.hidden_units;
+        
+        fcDisplay.innerText = fc.toLocaleString();
+        cnnDisplay.innerText = cnn.toLocaleString();
+    }
+
+    function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width * window.devicePixelRatio;
+        canvas.height = (rect.height - 100) * window.devicePixelRatio; // Adjust for stats
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = (rect.height - 100) + 'px';
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+
+    function handleMainButton() {
+        if (state.ended) {
+            resetSimulation();
+            startSimulation();
+        } else if (state.running) {
+            pauseSimulation();
+        } else {
+            startSimulation();
+        }
+    }
+
+    function startSimulation() {
+        state.running = true;
+        state.paused = false;
+        state.ended = false;
+        mainBtn.innerText = '暂停';
+        mainBtn.classList.remove('bg-indigo-600');
+        mainBtn.classList.add('bg-orange-500');
+        document.getElementById('status-overlay').classList.remove('hidden');
+    }
+
+    function pauseSimulation() {
+        state.running = false;
+        state.paused = true;
+        mainBtn.innerText = '继续';
+        mainBtn.classList.remove('bg-orange-500');
+        mainBtn.classList.add('bg-indigo-600');
+    }
+
+    function resetSimulation() {
+        state.running = false;
+        state.paused = false;
+        state.ended = false;
+        state.progress = 0;
+        mainBtn.innerText = '启动';
+        mainBtn.classList.remove('bg-orange-500');
+        mainBtn.classList.add('bg-indigo-600');
+        document.getElementById('status-overlay').classList.add('hidden');
+    }
+
+    function applyPreset(res, units, kernel) {
+        config.image_resolution = res;
+        config.hidden_units = units;
+        config.kernel_size = kernel;
+
+        // Update UI
+        document.getElementById('image_resolution-slider').value = res;
+        document.getElementById('hidden_units-slider').value = units;
+        document.getElementById('kernel_size-slider').value = kernel;
+        
+        document.getElementById('image_resolution-display').innerText = `${res}x${res}`;
+        document.getElementById('hidden_units-display').innerText = units;
+        document.getElementById('kernel_size-display').innerText = `${kernel}x${kernel}`;
+
+        calculateParams();
+        resetSimulation();
+    }
+
+    function drawFC(x, y, width, height, progress) {
+        const padding = 20;
+        const gridW = width - padding * 2;
+        const gridH = height - padding * 2;
+        
+        // Draw input pixels (simplified grid)
+        const displayRes = Math.min(config.image_resolution, 12);
+        const cellSize = gridW / displayRes;
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 0.5;
+
+        // Draw input grid
+        for (let i = 0; i <= displayRes; i++) {
+            ctx.beginPath();
+            ctx.moveTo(x + padding + i * cellSize, y + padding);
+            ctx.lineTo(x + padding + i * cellSize, y + padding + gridH);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x + padding, y + padding + i * cellSize);
+            ctx.lineTo(x + padding + gridW, y + padding + i * cellSize);
+            ctx.stroke();
+        }
+
+        // Draw output neurons
+        const neurons = Math.min(config.hidden_units, 10);
+        const neuronYStep = gridH / (neurons + 1);
+        const neuronX = x + width - padding;
+        
+        for (let i = 1; i <= neurons; i++) {
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(neuronX, y + padding + i * neuronYStep, 4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Draw connections (pulsing data)
+        if (state.running || state.paused) {
+            ctx.lineWidth = 1;
+            const flow = (progress * 5) % 1;
+            
+            for (let i = 1; i <= neurons; i++) {
+                const targetY = y + padding + i * neuronYStep;
+                // Only draw some connections for visual clarity
+                for (let j = 0; j < displayRes; j++) {
+                    const sourceX = x + padding + (j + 0.5) * cellSize;
+                    const sourceY = y + padding + (j + 0.5) * cellSize;
+                    
+                    ctx.beginPath();
+                    ctx.strokeStyle = `rgba(139, 92, 246, ${0.1 * (1 - flow)})`;
+                    ctx.moveTo(sourceX, sourceY);
+                    ctx.lineTo(neuronX, targetY);
+                    ctx.stroke();
+                    
+                    // Moving particle
+                    const px = sourceX + (neuronX - sourceX) * flow;
+                    const py = sourceY + (targetY - sourceY) * flow;
+                    ctx.fillStyle = 'rgba(196, 181, 253, 0.6)';
+                    ctx.beginPath();
+                    ctx.arc(px, py, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.8)';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('所有像素 ↔ 所有节点', x + padding, y + height - 5);
+    }
+
+    function drawCNN(x, y, width, height, progress) {
+        const padding = 20;
+        const gridArea = (width - padding * 3) / 2;
+        
+        // Left side: Input Image
+        const displayRes = Math.min(config.image_resolution, 16);
+        const cellSize = gridArea / displayRes;
+        
+        // Input Grid
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= displayRes; i++) {
+            ctx.beginPath();
+            ctx.moveTo(x + padding + i * cellSize, y + padding);
+            ctx.lineTo(x + padding + i * cellSize, y + padding + gridArea);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x + padding, y + padding + i * cellSize);
+            ctx.lineTo(x + padding + gridArea, y + padding + i * cellSize);
+            ctx.stroke();
+        }
+
+        // Feature Map Grid (Right)
+        const outX = x + padding * 2 + gridArea;
+        for (let i = 0; i <= displayRes; i++) {
+            ctx.beginPath();
+            ctx.moveTo(outX + i * cellSize, y + padding);
+            ctx.lineTo(outX + i * cellSize, y + padding + gridArea);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(outX, y + padding + i * cellSize);
+            ctx.lineTo(outX + gridArea, y + padding + i * cellSize);
+            ctx.stroke();
+        }
+
+        // Sliding Kernel
+        if (state.running || state.paused) {
+            const kSize = Math.max(1, Math.min(config.kernel_size, displayRes - 1));
+            const range = displayRes - kSize;
+            
+            // Calculate position based on progress
+            const totalSteps = range * range;
+            const currentStep = Math.floor(progress * totalSteps) % totalSteps;
+            const ky = Math.floor(currentStep / range);
+            const kx = currentStep % range;
+
+            const scanX = x + padding + kx * cellSize;
+            const scanY = y + padding + ky * cellSize;
+
+            // Highlight Kernel area on input
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.3)';
+            ctx.fillRect(scanX, scanY, kSize * cellSize, kSize * cellSize);
+            ctx.strokeStyle = '#10b981';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(scanX, scanY, kSize * cellSize, kSize * cellSize);
+
+            // Connect to Feature Map
+            const featX = outX + kx * cellSize;
+            const featY = y + padding + ky * cellSize;
+            
+            ctx.beginPath();
+            ctx.setLineDash([2, 2]);
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+            ctx.moveTo(scanX + kSize * cellSize, scanY);
+            ctx.lineTo(featX, featY);
+            ctx.moveTo(scanX + kSize * cellSize, scanY + kSize * cellSize);
+            ctx.lineTo(featX + cellSize, featY + cellSize);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Resulting pixel
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(featX, featY, cellSize, cellSize);
+        }
+
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.8)';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText('权重共享：局部感知野', x + padding, y + height - 5);
+    }
+
+    function animate(time) {
+        if (!state.lastTime) state.lastTime = time;
+        const deltaTime = time - state.lastTime;
+        state.lastTime = time;
+
+        if (state.running) {
+            state.progress += deltaTime * 0.0002;
+            if (state.progress > 1) {
+                // Keep running in loop
+                state.progress = 0;
+            }
+        }
+
+        const w = canvas.width / window.devicePixelRatio;
+        const h = canvas.height / window.devicePixelRatio;
+
+        ctx.clearRect(0, 0, w, h);
+
+        const isMobile = w < 600;
+        
+        if (isMobile) {
+            // Stacked layout
+            drawFC(0, 0, w, h/2, state.progress);
+            drawCNN(0, h/2, w, h/2, state.progress);
+            
+            // Divider
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.beginPath();
+            ctx.moveTo(20, h/2);
+            ctx.lineTo(w-20, h/2);
+            ctx.stroke();
+        } else {
+            // Side-by-side
+            drawFC(0, 0, w/2, h, state.progress);
+            drawCNN(w/2, 0, w/2, h, state.progress);
+            
+            // Divider
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.beginPath();
+            ctx.moveTo(w/2, 40);
+            ctx.lineTo(w/2, h-40);
+            ctx.stroke();
+        }
+
+        requestAnimationFrame(animate);
+    }
+
+    // Teacher actions listener
+    window.addEventListener('message', function(event) {
+        const { type, target, state: newState, content } = event.data;
+
+        switch (type) {
+            case 'SET_WIDGET_STATE':
+                if (newState) {
+                    Object.entries(newState).forEach(([key, value]) => {
+                        const slider = document.getElementById(key + '-slider');
+                        if (slider) {
+                            slider.value = value;
+                            slider.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    });
+                }
+                break;
+
+            case 'HIGHLIGHT_ELEMENT':
+                const highlightEl = document.querySelector(target);
+                if (highlightEl) {
+                    highlightEl.style.outline = '4px solid rgba(139, 92, 246, 0.8)';
+                    highlightEl.style.outlineOffset = '4px';
+                    highlightEl.style.animation = 'pulse-highlight 2s infinite';
+                    setTimeout(() => {
+                        highlightEl.style.outline = '';
+                        highlightEl.style.animation = '';
+                    }, 4000);
+                }
+                break;
+
+            case 'ANNOTATE_ELEMENT':
+                const annotateEl = document.querySelector(target);
+                if (annotateEl && content) {
+                    const rect = annotateEl.getBoundingClientRect();
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'teacher-annotation fixed bg-indigo-600 text-white px-3 py-2 rounded shadow-lg text-sm z-[100] transition-opacity';
+                    tooltip.style.top = (rect.top - 45) + 'px';
+                    tooltip.style.left = rect.left + 'px';
+                    tooltip.textContent = content;
+                    document.body.appendChild(tooltip);
+                    setTimeout(() => {
+                        tooltip.style.opacity = '0';
+                        setTimeout(() => tooltip.remove(), 500);
+                    }, 4000);
+                }
+                break;
+        }
+    });
+
+    // Keyboard support
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            handleMainButton();
+        } else if (e.code === 'KeyR') {
+            resetSimulation();
+        }
+    });
+
+    init();
+</script>
+</body>
+</html>

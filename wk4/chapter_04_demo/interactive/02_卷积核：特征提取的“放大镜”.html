@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>卷积核：特征提取的“放大镜”</title>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --panel-bg: rgba(30, 41, 59, 0.94);
+      --node-bg: #ffffff;
+      --node-text: #1e293b;
+      --accent-color: #38bdf8;
+      --edge-color: #94a3b8;
+    }
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg-color); color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    #app { position: relative; width: 100%; height: 100%; }
+    #stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    svg { width: 100%; height: 100%; user-select: none; }
+    .node { cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+    .node rect { fill: var(--node-bg); rx: 12; filter: drop-shadow(0 4px 6px rgba(0,0,0,.28)); }
+    .node.active rect { stroke: var(--accent-color); stroke-width: 4; }
+    .node-icon { font-size: 24px; pointer-events: none; }
+    .node-label { fill: var(--node-text); font-weight: 700; font-size: 14px; pointer-events: none; }
+    .edge { fill: none; stroke: var(--edge-color); stroke-width: 2.5; opacity: 0; transition: opacity .35s ease; }
+    .edge-label { fill: #cbd5e1; font-size: 12px; font-weight: 500; opacity: 0; transition: opacity .35s ease; }
+    .controls { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; gap: 12px; z-index: 200; background: rgba(15,23,42,.82); border: 1px solid rgba(255,255,255,.12); padding: 10px 16px; border-radius: 999px; backdrop-filter: blur(10px); }
+    button { border: none; border-radius: 999px; padding: 8px 18px; font-weight: 700; cursor: pointer; background: var(--accent-color); color: var(--bg-color); transition: transform .2s ease, filter .2s ease, opacity .2s ease; }
+    button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); }
+    button:disabled { opacity: .3; cursor: not-allowed; }
+    #panel { position: fixed; top: 18px; right: -360px; width: 300px; bottom: 18px; padding: 24px; background: var(--panel-bg); backdrop-filter: blur(12px); border-left: 1px solid rgba(255,255,255,.12); border-radius: 18px 0 0 18px; box-shadow: -10px 0 30px rgba(0,0,0,.35); z-index: 300; transition: right .35s cubic-bezier(.16,1,.3,1); overflow-y: auto; }
+    #panel.open { right: 0; }
+    .panel-close { position: absolute; top: 12px; right: 12px; border: none; background: transparent; color: #cbd5e1; font-size: 24px; cursor: pointer; padding: 0; }
+    h2 { margin: 0 0 12px; color: var(--accent-color); font-size: 1.25rem; }
+    p { margin: 0 0 12px; line-height: 1.7; color: #e2e8f0; }
+    .hint { color: #93c5fd; font-size: .92rem; margin-top: 14px; line-height: 1.6; }
+    @media (max-width: 768px) { #panel { top: auto; bottom: 0; left: 0; right: 0; width: auto; height: 42%; border-radius: 18px 18px 0 0; } }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <svg id="canvas" viewBox="0 0 800 600" aria-label="卷积核教学图">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"></polygon>
+          </marker>
+        </defs>
+        <g id="edges-layer"></g>
+        <g id="nodes-layer"></g>
+      </svg>
+    </div>
+    <div class="controls">
+      <button id="prevBtn" type="button">← 上一步</button>
+      <button id="nextBtn" type="button">下一步 →</button>
+    </div>
+    <aside id="panel">
+      <button class="panel-close" id="closePanelBtn" type="button">×</button>
+      <div id="panel-body">
+        <h2 id="panel-title">点击节点查看详情</h2>
+        <p id="panel-desc">卷积神经网络（CNN）通过卷积核模拟人类视觉系统，逐层提取图像特征。</p>
+        <p class="hint" id="panel-hint">提示：可以先点击“下一步”逐个展开，也可以直接点击已显示的节点查看说明。</p>
+      </div>
+    </aside>
+  </div>
+  <script type="application/json" id="widget-config">
+  {
+    "nodes": [
+      { "id": "n1", "x": 150, "y": 150, "label": "输入图像", "icon": "🖼️", "details": "一切的起点。输入的是图像像素矩阵，是卷积核进行特征探测的原始画布。" },
+      { "id": "n2", "x": 400, "y": 150, "label": "局部感受野", "icon": "🔍", "details": "卷积核每次只看图像的一小块区域，例如 3×3 或 5×5。这种局部连接让模型更关注邻近像素之间的关系。" },
+      { "id": "n3", "x": 650, "y": 150, "label": "权重共享", "icon": "⚖️", "details": "同一组卷积核参数会在整张图像上滑动，既减少参数量，也让模型更容易识别出“移动到别处”的相同特征。" },
+      { "id": "n4", "x": 650, "y": 450, "label": "卷积运算", "icon": "✖️", "details": "卷积核与局部区域逐元素相乘再求和，得到一个响应值。响应越强，表示该位置越像卷积核要寻找的模式。" },
+      { "id": "n5", "x": 400, "y": 450, "label": "特征图", "icon": "🗺️", "details": "卷积运算后的输出矩阵。亮的地方表示特征匹配更强，暗的地方表示匹配较弱。" },
+      { "id": "n6", "x": 150, "y": 450, "label": "深层抽象", "icon": "🧠", "details": "多层卷积堆叠后，模型会从边缘、纹理、形状逐步过渡到更抽象的结构表达，最终服务于分类。" }
+    ],
+    "edges": [
+      { "from": "n1", "to": "n2", "label": "区域扫描" },
+      { "from": "n2", "to": "n3", "label": "参数映射" },
+      { "from": "n3", "to": "n4", "label": "激活计算" },
+      { "from": "n4", "to": "n5", "label": "输出响应" },
+      { "from": "n5", "to": "n6", "label": "深度连接" }
+    ],
+    "revealOrder": ["n1", "n2", "n3", "n4", "n5", "n6"]
+  }
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const config = JSON.parse(document.getElementById('widget-config').textContent);
+      const nodesLayer = document.getElementById('nodes-layer');
+      const edgesLayer = document.getElementById('edges-layer');
+      const prevBtn = document.getElementById('prevBtn');
+      const nextBtn = document.getElementById('nextBtn');
+      const panel = document.getElementById('panel');
+      const panelTitle = document.getElementById('panel-title');
+      const panelDesc = document.getElementById('panel-desc');
+      const panelHint = document.getElementById('panel-hint');
+      const closePanelBtn = document.getElementById('closePanelBtn');
+      const NODE_WIDTH = 180;
+      const NODE_HEIGHT = 70;
+      const ARROW_OFFSET = 10;
+      let currentStep = 0;
+
+      function getEdgePoints(from, to) {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        let sx, sy, ex, ey;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          sx = from.x;
+          sy = dy > 0 ? from.y + NODE_HEIGHT / 2 : from.y - NODE_HEIGHT / 2;
+          ex = to.x;
+          ey = dy > 0 ? to.y - NODE_HEIGHT / 2 - ARROW_OFFSET : to.y + NODE_HEIGHT / 2 + ARROW_OFFSET;
+        } else {
+          sx = dx > 0 ? from.x + NODE_WIDTH / 2 : from.x - NODE_WIDTH / 2;
+          sy = from.y;
+          ex = dx > 0 ? to.x - NODE_WIDTH / 2 - ARROW_OFFSET : to.x + NODE_WIDTH / 2 + ARROW_OFFSET;
+          ey = to.y;
+        }
+        return `M ${sx} ${sy} L ${ex} ${ey}`;
+      }
+
+      function openPanel(node) {
+        panelTitle.textContent = `${node.icon} ${node.label}`;
+        panelDesc.textContent = node.details;
+        panelHint.textContent = `当前步骤：第 ${config.revealOrder.indexOf(node.id) + 1} 步。可以继续点击“下一步”查看后续结构，也可以点其他节点切换说明。`;
+        panel.classList.add('open');
+      }
+
+      function closePanel() {
+        panel.classList.remove('open');
+        document.querySelectorAll('.node').forEach(el => el.classList.remove('active'));
+      }
+
+      function selectNode(nodeId) {
+        const node = config.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        document.querySelectorAll('.node').forEach(el => el.classList.remove('active'));
+        const nodeEl = document.getElementById(`node-${nodeId}`);
+        if (nodeEl) nodeEl.classList.add('active');
+        openPanel(node);
+      }
+
+      function updateVisibility() {
+        config.revealOrder.forEach((id, index) => {
+          const nodeEl = document.getElementById(`node-${id}`);
+          if (nodeEl) {
+            nodeEl.style.opacity = index <= currentStep ? '1' : '0';
+            nodeEl.style.pointerEvents = index <= currentStep ? 'all' : 'none';
+          }
+        });
+
+        config.edges.forEach((edge, index) => {
+          const edgeEl = document.getElementById(`edge-${index}`);
+          const labelEl = document.getElementById(`edge-label-${index}`);
+          const fromIdx = config.revealOrder.indexOf(edge.from);
+          const toIdx = config.revealOrder.indexOf(edge.to);
+          const visible = fromIdx <= currentStep && toIdx <= currentStep;
+          if (edgeEl) edgeEl.style.opacity = visible ? '1' : '0';
+          if (labelEl) labelEl.style.opacity = visible ? '1' : '0';
+        });
+
+        prevBtn.disabled = currentStep === 0;
+        nextBtn.disabled = currentStep === config.revealOrder.length - 1;
+      }
+
+      function step(dir) {
+        currentStep = Math.max(0, Math.min(config.revealOrder.length - 1, currentStep + dir));
+        updateVisibility();
+        selectNode(config.revealOrder[currentStep]);
+      }
+
+      config.edges.forEach((edge, index) => {
+        const from = config.nodes.find(n => n.id === edge.from);
+        const to = config.nodes.find(n => n.id === edge.to);
+        const midX = (from.x + to.x) / 2;
+        const midY = (from.y + to.y) / 2;
+        const pathData = getEdgePoints(from, to);
+        const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        edgeGroup.setAttribute('id', `edge-${index}`);
+        edgeGroup.style.opacity = '0';
+        edgeGroup.innerHTML = `<path d="${pathData}" class="edge" marker-end="url(#arrowhead)"></path><text id="edge-label-${index}" x="${midX}" y="${midY - 10}" text-anchor="middle" class="edge-label">${edge.label}</text>`;
+        edgesLayer.appendChild(edgeGroup);
+      });
+
+      config.nodes.forEach(node => {
+        const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        nodeGroup.setAttribute('id', `node-${node.id}`);
+        nodeGroup.setAttribute('class', 'node');
+        nodeGroup.style.opacity = '0';
+        nodeGroup.innerHTML = `<rect x="${node.x - NODE_WIDTH / 2}" y="${node.y - NODE_HEIGHT / 2}" width="${NODE_WIDTH}" height="${NODE_HEIGHT}"></rect><text x="${node.x}" y="${node.y - 5}" text-anchor="middle" class="node-icon">${node.icon}</text><text x="${node.x}" y="${node.y + 20}" text-anchor="middle" class="node-label">${node.label}</text>`;
+        nodeGroup.addEventListener('click', () => selectNode(node.id));
+        nodesLayer.appendChild(nodeGroup);
+      });
+
+      prevBtn.addEventListener('click', () => step(-1));
+      nextBtn.addEventListener('click', () => step(1));
+      closePanelBtn.addEventListener('click', closePanel);
+
+      updateVisibility();
+      selectNode(config.revealOrder[0]);
+    });
+  </script>
+</body>
+</html>

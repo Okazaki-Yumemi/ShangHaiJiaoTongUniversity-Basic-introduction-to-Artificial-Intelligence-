@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>池化机制 (Pooling Mechanism) 交互模拟</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --primary-light: #ddd6fe;
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; overflow-x: hidden; }
+        .control-panel { background: white; border-right: 1px solid #e2e8f0; z-index: 10; }
+        canvas { touch-action: none; width: 100%; height: 100%; display: block; }
+        .slider-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 600; color: #475569; }
+        input[type="range"] { width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; appearance: none; cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb { appearance: none; width: 20px; height: 20px; background: var(--primary); border-radius: 50%; border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .btn { padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; min-height: 44px; display: flex; items-center: center; justify-content: center; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #7c3aed; }
+        .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        .btn-secondary:hover { background: #e2e8f0; }
+        #stats-overlay { pointer-events: none; position: absolute; top: 1rem; right: 1rem; background: rgba(255,255,255,0.9); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; font-family: monospace; font-size: 0.875rem; }
+        
+        /* Mobile adjustment */
+        @media (max-width: 768px) {
+            .control-panel { border-right: none; border-bottom: 1px solid #e2e8f0; }
+        }
+
+        .teacher-annotation { pointer-events: none; }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="flex flex-col md:flex-row min-h-screen">
+
+    <!-- Configuration for Widget -->
+    <script type="application/json" id="widget-config">
+    {
+      "type": "simulation",
+      "concept": "pooling_mechanism",
+      "description": "展示卷积神经网络中最大池化(Max Pooling)与平均池化(Average Pooling)的降维与特征提取原理。",
+      "variables": [
+        { "name": "pooling_type", "label": "池化类型", "type": "select", "options": ["Max", "Average"], "default": "Max" },
+        { "name": "pool_size", "label": "池化核大小", "min": 2, "max": 4, "default": 2, "unit": "px" },
+        { "name": "stride", "label": "步幅 (Stride)", "min": 1, "max": 4, "default": 2, "unit": "px" }
+      ],
+      "presets": [
+        { "name": "标准 2x2 Max Pooling", "variables": { "pooling_type": "Max", "pool_size": 2, "stride": 2 } },
+        { "name": "3x3 重叠 Average Pooling", "variables": { "pooling_type": "Average", "pool_size": 3, "stride": 1 } }
+      ]
+    }
+    </script>
+
+    <!-- Sidebar Controls -->
+    <div id="controls" class="w-full md:w-80 shrink-0 flex flex-col p-6 overflow-y-auto max-h-[45vh] md:max-h-screen border-b md:border-b-0">
+        <h1 class="text-xl font-bold mb-6 text-slate-800">池化机制模拟器</h1>
+        
+        <div class="space-y-6">
+            <!-- Pooling Type -->
+            <div>
+                <label class="slider-label">池化模式</label>
+                <div class="flex gap-2">
+                    <button id="type-max-btn" data-type="Max" class="flex-1 btn btn-primary" onclick="setPoolingType('Max')">最大池化</button>
+                    <button id="type-avg-btn" data-type="Average" class="flex-1 btn btn-secondary" onclick="setPoolingType('Average')">平均池化</button>
+                </div>
+            </div>
+
+            <!-- Pool Size -->
+            <div>
+                <div class="slider-label">
+                    <span>池化核大小 (K)</span>
+                    <span id="pool_size-display">2 × 2</span>
+                </div>
+                <input type="range" id="pool_size-slider" min="2" max="4" step="1" value="2" data-var="pool_size">
+            </div>
+
+            <!-- Stride -->
+            <div>
+                <div class="slider-label">
+                    <span>步幅 (Stride)</span>
+                    <span id="stride-display">2</span>
+                </div>
+                <input type="range" id="stride-slider" min="1" max="4" step="1" value="2" data-var="stride">
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pt-4 space-y-3">
+                <button id="main-btn" class="w-full btn btn-primary text-lg" onclick="handleMainButton()">启动模拟</button>
+                <button id="reset-btn" class="w-full btn btn-secondary" onclick="resetSimulation()">重置画布</button>
+            </div>
+
+            <!-- Info -->
+            <div class="p-4 bg-slate-50 rounded-lg text-sm text-slate-600 leading-relaxed">
+                <p id="description-text"><strong>最大池化 (Max Pooling)</strong>: 提取局部窗口内的最大值，保留最显著的特征。</p>
+            </div>
+
+            <!-- Presets -->
+            <div class="space-y-2">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">预设场景</span>
+                <div class="grid grid-cols-1 gap-2">
+                    <button class="text-left px-3 py-2 rounded border border-slate-200 hover:border-violet-300 text-sm transition-colors" onclick="applyPreset('standard')">标准 2x2 / Stride 2</button>
+                    <button class="text-left px-3 py-2 rounded border border-slate-200 hover:border-violet-300 text-sm transition-colors" onclick="applyPreset('overlap')">3x3 重叠池化 (Stride 1)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas Area -->
+    <div class="flex-1 relative bg-white overflow-hidden flex items-center justify-center p-4">
+        <canvas id="main-canvas"></canvas>
+        <div id="stats-overlay">
+            <div id="status-text" class="font-bold text-violet-600 mb-1">准备就绪</div>
+            <div id="calc-display">窗口值: -</div>
+            <div id="result-display">结果: -</div>
+        </div>
+        
+        <!-- Tooltip for simulation info -->
+        <div id="simulation-info" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full text-sm shadow-xl opacity-0 transition-opacity">
+            正在处理...
+        </div>
+    </div>
+
+    <script>
+        /** SIMULATION STATE **/
+        const state = {
+            running: false,
+            paused: false,
+            ended: false,
+            pooling_type: 'Max', // Max or Average
+            pool_size: 2,
+            stride: 2,
+            
+            // Grid settings
+            inputSize: 8,
+            inputGrid: [],
+            outputGrid: [],
+            
+            // Animation state
+            currX: 0,
+            currY: 0,
+            progress: 0,
+            lastFrameTime: 0,
+            speed: 0.02,
+            
+            // Canvas
+            canvas: null,
+            ctx: null
+        };
+
+        /** INITIALIZATION **/
+        function init() {
+            state.canvas = document.getElementById('main-canvas');
+            state.ctx = state.canvas.getContext('2d');
+            
+            // Generate random input data (simulating a feature map)
+            generateInputGrid();
+            
+            // Setup Listeners
+            setupEventListeners();
+            
+            // Initial Resize
+            handleResize();
+            window.addEventListener('resize', handleResize);
+            
+            // Start Render Loop
+            requestAnimationFrame(renderLoop);
+        }
+
+        function generateInputGrid() {
+            state.inputGrid = [];
+            for (let i = 0; i < state.inputSize; i++) {
+                const row = [];
+                for (let j = 0; j < state.inputSize; j++) {
+                    // Create some pattern, e.g., a diagonal line or block
+                    let val = Math.floor(Math.random() * 50) + 20;
+                    // Add a visual pattern
+                    if ((i >= 2 && i <= 5 && j >= 2 && j <= 5)) val += 150;
+                    row.push(val);
+                }
+                state.inputGrid.push(row);
+            }
+            state.outputGrid = []; // Start empty
+        }
+
+        function setupEventListeners() {
+            // Sliders
+            const sliders = ['pool_size', 'stride'];
+            sliders.forEach(id => {
+                const el = document.getElementById(id + '-slider');
+                el.addEventListener('input', (e) => {
+                    state[id] = parseInt(e.target.value);
+                    document.getElementById(id + '-display').innerText = id === 'pool_size' ? `${state[id]} × ${state[id]}` : state[id];
+                    resetSimulation();
+                });
+            });
+
+            // Keyboard shortcuts
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    handleMainButton();
+                } else if (e.code === 'KeyR') {
+                    resetSimulation();
+                }
+            });
+        }
+
+        function handleResize() {
+            const container = state.canvas.parentElement;
+            const size = Math.min(container.clientWidth, container.clientHeight) - 40;
+            state.canvas.width = size;
+            state.canvas.height = size;
+            draw();
+        }
+
+        /** CORE LOGIC **/
+        function setPoolingType(type) {
+            state.pooling_type = type;
+            document.getElementById('type-max-btn').className = `flex-1 btn ${type === 'Max' ? 'btn-primary' : 'btn-secondary'}`;
+            document.getElementById('type-avg-btn').className = `flex-1 btn ${type === 'Average' ? 'btn-primary' : 'btn-secondary'}`;
+            
+            const desc = document.getElementById('description-text');
+            if (type === 'Max') {
+                desc.innerHTML = '<strong>最大池化 (Max Pooling)</strong>: 提取局部窗口内的最大值，保留最显著的特征（如边缘或强信号），具有平移不变性。';
+            } else {
+                desc.innerHTML = '<strong>平均池化 (Average Pooling)</strong>: 计算窗口内所有值的平均值，能平滑局部信息，保留背景或整体特征。';
+            }
+            resetSimulation();
+        }
+
+        function handleMainButton() {
+            if (state.ended) {
+                resetSimulation();
+                startSimulation();
+            } else if (state.running) {
+                pauseSimulation();
+            } else {
+                startSimulation();
+            }
+        }
+
+        function startSimulation() {
+            state.running = true;
+            state.paused = false;
+            document.getElementById('main-btn').innerText = '暂停模拟';
+            document.getElementById('status-text').innerText = '正在运行...';
+            document.getElementById('status-text').className = 'font-bold text-green-600 mb-1';
+        }
+
+        function pauseSimulation() {
+            state.running = false;
+            state.paused = true;
+            document.getElementById('main-btn').innerText = '继续模拟';
+            document.getElementById('status-text').innerText = '已暂停';
+            document.getElementById('status-text').className = 'font-bold text-amber-600 mb-1';
+        }
+
+        function resetSimulation() {
+            state.running = false;
+            state.paused = false;
+            state.ended = false;
+            state.currX = 0;
+            state.currY = 0;
+            state.progress = 0;
+            state.outputGrid = [];
+            generateInputGrid();
+            document.getElementById('main-btn').innerText = '启动模拟';
+            document.getElementById('status-text').innerText = '准备就绪';
+            document.getElementById('status-text').className = 'font-bold text-violet-600 mb-1';
+            document.getElementById('calc-display').innerText = '窗口值: -';
+            document.getElementById('result-display').innerText = '结果: -';
+            draw();
+        }
+
+        function applyPreset(type) {
+            if (type === 'standard') {
+                state.pool_size = 2;
+                state.stride = 2;
+                setPoolingType('Max');
+            } else {
+                state.pool_size = 3;
+                state.stride = 1;
+                setPoolingType('Average');
+            }
+            
+            document.getElementById('pool_size-slider').value = state.pool_size;
+            document.getElementById('pool_size-display').innerText = `${state.pool_size} × ${state.pool_size}`;
+            document.getElementById('stride-slider').value = state.stride;
+            document.getElementById('stride-display').innerText = state.stride;
+            
+            resetSimulation();
+        }
+
+        /** RENDERING **/
+        function renderLoop(timestamp) {
+            if (state.running) {
+                update(timestamp);
+            }
+            draw();
+            requestAnimationFrame(renderLoop);
+        }
+
+        function update(timestamp) {
+            const dt = timestamp - state.lastFrameTime;
+            state.lastFrameTime = timestamp;
+
+            // Simple state machine for step-by-step movement
+            state.progress += state.speed;
+            
+            if (state.progress >= 1.0) {
+                state.progress = 0;
+                
+                // Calculate current pooling value
+                const windowValues = [];
+                for (let i = 0; i < state.pool_size; i++) {
+                    for (let j = 0; j < state.pool_size; j++) {
+                        const y = state.currY + i;
+                        const x = state.currX + j;
+                        if (y < state.inputSize && x < state.inputSize) {
+                            windowValues.push(state.inputGrid[y][x]);
+                        }
+                    }
+                }
+                
+                let result = 0;
+                if (state.pooling_type === 'Max') {
+                    result = Math.max(...windowValues);
+                    document.getElementById('calc-display').innerText = `窗口: [${windowValues.slice(0,4).join(',')}...]`;
+                    document.getElementById('result-display').innerText = `Max: ${result}`;
+                } else {
+                    result = Math.round(windowValues.reduce((a,b) => a+b, 0) / windowValues.length);
+                    document.getElementById('calc-display').innerText = `窗口: Σ=${Math.round(windowValues.reduce((a,b) => a+b, 0))}`;
+                    document.getElementById('result-display').innerText = `Avg: ${result}`;
+                }
+
+                // Store result
+                const outY = Math.floor(state.currY / state.stride);
+                const outX = Math.floor(state.currX / state.stride);
+                if (!state.outputGrid[outY]) state.outputGrid[outY] = [];
+                state.outputGrid[outY][outX] = result;
+
+                // Move kernel
+                state.currX += state.stride;
+                
+                // Check bounds for next row
+                if (state.currX + state.pool_size > state.inputSize) {
+                    state.currX = 0;
+                    state.currY += state.stride;
+                    
+                    // Check completion
+                    if (state.currY + state.pool_size > state.inputSize) {
+                        state.running = false;
+                        state.ended = true;
+                        document.getElementById('main-btn').innerText = '重新开始';
+                        document.getElementById('status-text').innerText = '完成';
+                        document.getElementById('status-text').className = 'font-bold text-blue-600 mb-1';
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            const { ctx, canvas, inputSize, pool_size, inputGrid, outputGrid, currX, currY, pooling_type } = state;
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            ctx.clearRect(0, 0, w, h);
+            
+            const padding = 40;
+            const gridArea = (w - padding * 3) / 2;
+            const cellSize = gridArea / inputSize;
+            
+            // 1. Draw Input Grid
+            const inputStartX = padding;
+            const inputStartY = padding + (h - 2*padding - gridArea)/2;
+            
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Label
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText('输入特征图 (Input)', inputStartX + gridArea/2, inputStartY - 20);
+
+            for (let i = 0; i < inputSize; i++) {
+                for (let j = 0; j < inputSize; j++) {
+                    const x = inputStartX + j * cellSize;
+                    const y = inputStartY + i * cellSize;
+                    const val = inputGrid[i][j];
+                    
+                    // Draw cell
+                    ctx.fillStyle = `rgb(${val}, ${val/1.5 + 50}, 255)`;
+                    ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
+                    
+                    // Value text if large enough
+                    if (cellSize > 25) {
+                        ctx.fillStyle = val > 128 ? 'white' : 'black';
+                        ctx.fillText(val, x + cellSize/2, y + cellSize/2);
+                    }
+                }
+            }
+
+            // 2. Draw Output Grid
+            const outputStartX = padding * 2 + gridArea;
+            const outSize = Math.floor((inputSize - pool_size) / state.stride) + 1;
+            const outCellSize = gridArea / outSize;
+            const outputStartY = inputStartY + (gridArea - outSize * outCellSize) / 2;
+
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText(`输出 (${pooling_type} Pooled)`, outputStartX + gridArea/2, inputStartY - 20);
+
+            for (let i = 0; i < outSize; i++) {
+                for (let j = 0; j < outSize; j++) {
+                    const x = outputStartX + j * outCellSize;
+                    const y = outputStartY + i * outCellSize;
+                    
+                    ctx.strokeStyle = '#e2e8f0';
+                    ctx.strokeRect(x, y, outCellSize, outCellSize);
+
+                    if (outputGrid[i] && outputGrid[i][j] !== undefined) {
+                        const val = outputGrid[i][j];
+                        ctx.fillStyle = `rgb(${val}, ${val/1.5 + 50}, 255)`;
+                        ctx.fillRect(x + 1, y + 1, outCellSize - 2, outCellSize - 2);
+                        
+                        if (outCellSize > 25) {
+                            ctx.fillStyle = val > 128 ? 'white' : 'black';
+                            ctx.fillText(val, x + outCellSize/2, y + outCellSize/2);
+                        }
+                    }
+                }
+            }
+
+            // 3. Draw Sliding Window (The Kernel)
+            if (!state.ended) {
+                const winX = inputStartX + currX * cellSize;
+                const winY = inputStartY + currY * cellSize;
+                const winSize = pool_size * cellSize;
+                
+                // Highlight window
+                ctx.strokeStyle = '#8b5cf6';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(winX, winY, winSize, winSize);
+                
+                // Pulsing fill
+                const pulse = Math.sin(Date.now() / 200) * 0.1 + 0.2;
+                ctx.fillStyle = `rgba(139, 92, 246, ${pulse})`;
+                ctx.fillRect(winX, winY, winSize, winSize);
+
+                // Connection lines to output
+                const outIdxX = Math.floor(currX / state.stride);
+                const outIdxY = Math.floor(currY / state.stride);
+                const targetX = outputStartX + outIdxX * outCellSize + outCellSize/2;
+                const targetY = outputStartY + outIdxY * outCellSize + outCellSize/2;
+
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.moveTo(winX + winSize, winY + winSize/2);
+                ctx.lineTo(targetX - outCellSize/2, targetY);
+                ctx.strokeStyle = 'rgba(139, 92, 246, 0.5)';
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        /** TEACHER ACTION LISTENER **/
+        window.addEventListener('message', function(event) {
+            const { type, target, state: newState, content } = event.data;
+
+            switch (type) {
+                case 'SET_WIDGET_STATE':
+                    if (newState) {
+                        Object.entries(newState).forEach(([key, value]) => {
+                            if (key === 'pooling_type') {
+                                setPoolingType(value);
+                            } else {
+                                const slider = document.getElementById(key + '-slider');
+                                if (slider) {
+                                    slider.value = value;
+                                    slider.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                            }
+                        });
+                    }
+                    break;
+
+                case 'HIGHLIGHT_ELEMENT':
+                    const highlightEl = document.querySelector(target);
+                    if (highlightEl) {
+                        highlightEl.style.outline = '3px solid rgba(139, 92, 246, 0.8)';
+                        highlightEl.style.outlineOffset = '4px';
+                        highlightEl.style.animation = 'pulse-highlight 2s infinite';
+                        setTimeout(() => {
+                            highlightEl.style.outline = '';
+                            highlightEl.style.animation = '';
+                        }, 3000);
+                    }
+                    break;
+
+                case 'ANNOTATE_ELEMENT':
+                    const annotateEl = document.querySelector(target);
+                    if (annotateEl && content) {
+                        const rect = annotateEl.getBoundingClientRect();
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'teacher-annotation';
+                        tooltip.style.cssText = 'position:fixed; top:' + (rect.top - 40) + 'px; left:' + rect.left + 'px; background:rgba(139,92,246,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:14px; z-index:1000; animation:fadeIn 0.3s;';
+                        tooltip.textContent = content;
+                        document.body.appendChild(tooltip);
+                        setTimeout(() => tooltip.remove(), 4000);
+                    }
+                    break;
+            }
+        });
+
+        // Add visual styles for animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse-highlight { 0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 50% { outline-color: rgba(139, 92, 246, 0.2); } }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        `;
+        document.head.appendChild(style);
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>

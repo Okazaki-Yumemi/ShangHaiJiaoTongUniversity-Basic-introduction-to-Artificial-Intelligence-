@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卷积运算交互模拟器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-highlight { 
+            0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 
+            50% { outline-color: rgba(139, 92, 246, 0.4); } 
+        }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .canvas-container {
+            position: relative;
+            background: #f8fafc;
+            border-radius: 12px;
+            overflow: hidden;
+            touch-action: none;
+        }
+        input[type="range"] {
+            height: 8px;
+            -webkit-appearance: none;
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: #8b5cf6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .pixel-grid {
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .btn-active {
+            transform: scale(0.98);
+        }
+
+        .kernel-panel {
+            min-width: 220px;
+        }
+
+        .kernel-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        .kernel-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 42px;
+            min-height: 32px;
+            border-radius: 6px;
+            background: rgba(139, 92, 246, 0.12);
+            border: 1px solid rgba(139, 92, 246, 0.22);
+            color: #ede9fe;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 12px;
+            font-weight: 700;
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen flex flex-col md:flex-row overflow-hidden">
+
+<script type="application/json" id="widget-config">
+{
+  "type": "simulation",
+  "concept": "convolution_operation",
+  "description": "通过动态演示卷积核在图像上的滑动过程，理解特征提取的核心原理。",
+  "variables": [
+    { "name": "kernel_type", "label": "卷积核类型", "options": ["边缘检测", "锐化", "模糊", "恒等"], "default": "边缘检测" },
+    { "name": "sim_speed", "label": "演示速度", "min": 0.5, "max": 3, "default": 1, "unit": "x" }
+  ],
+  "presets": [
+    { "name": "垂直边缘检测", "variables": { "kernel_type": "边缘检测", "sim_speed": 1.5 } },
+    { "name": "图像模糊", "variables": { "kernel_type": "模糊", "sim_speed": 2 } }
+  ]
+}
+</script>
+
+<!-- Control Panel -->
+<div id="controls" class="w-full md:w-80 bg-white border-b md:border-r border-slate-200 p-6 flex flex-col gap-6 overflow-y-auto max-h-[45vh] md:max-h-screen shrink-0 z-10 shadow-lg">
+    <div>
+        <h1 class="text-xl font-bold text-slate-800 mb-2">卷积运算模拟</h1>
+        <p class="text-sm text-slate-500 leading-relaxed">观察卷积核如何提取局部特征并生成特征图。</p>
+    </div>
+
+    <div class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">卷积核类型</label>
+            <select id="kernel_type-slider" class="w-full p-3 bg-slate-100 border-none rounded-lg focus:ring-2 focus:ring-violet-500 outline-none transition-all cursor-pointer">
+                <option value="sobel">边缘检测 (Sobel)</option>
+                <option value="sharpen">锐化 (Sharpen)</option>
+                <option value="blur">模糊 (Blur)</option>
+                <option value="identity">恒等 (Identity)</option>
+            </select>
+        </div>
+
+        <div>
+            <div class="flex justify-between mb-2">
+                <label class="text-sm font-medium text-slate-700">演示速度</label>
+                <span id="sim_speed-display" class="text-xs font-mono bg-violet-100 text-violet-700 px-2 py-1 rounded">1.0x</span>
+            </div>
+            <input type="range" id="sim_speed-slider" min="0.5" max="3" step="0.1" value="1" class="w-full accent-violet-600">
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-3 pt-4 border-t border-slate-100">
+        <button id="main-btn" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md active:scale-95">
+            启动演示
+        </button>
+        <button id="reset-btn" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 px-4 rounded-xl transition-all">
+            重置
+        </button>
+    </div>
+
+    <div class="mt-auto">
+        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">预设场景</div>
+        <div class="grid grid-cols-2 gap-2">
+            <button onclick="applyPreset('sobel')" class="text-xs bg-slate-100 hover:bg-violet-50 hover:text-violet-600 p-2 rounded transition-colors border border-slate-200">边缘检测</button>
+            <button onclick="applyPreset('blur')" class="text-xs bg-slate-100 hover:bg-violet-50 hover:text-violet-600 p-2 rounded transition-colors border border-slate-200">高斯模糊</button>
+        </div>
+    </div>
+</div>
+
+<!-- Visualization Area -->
+<div class="flex-1 relative flex flex-col bg-slate-900 overflow-hidden">
+    <!-- Status HUD -->
+    <div class="absolute top-4 left-4 z-20 pointer-events-none">
+        <div id="status-tag" class="bg-black/50 backdrop-blur text-white px-3 py-1 rounded-full text-xs font-medium border border-white/20">
+            等待启动...
+        </div>
+    </div>
+
+    <div class="absolute top-4 right-4 z-20 flex gap-4">
+        <div class="bg-black/50 backdrop-blur p-3 rounded-lg border border-white/20 text-white text-[10px] md:text-xs">
+            <div class="font-bold mb-1 text-violet-400">卷积公式</div>
+            <code class="font-mono">Output[x,y] = Σ(Input * Kernel)</code>
+        </div>
+        <div class="kernel-panel bg-black/50 backdrop-blur p-3 rounded-lg border border-white/20 text-white text-[10px] md:text-xs">
+            <div class="font-bold mb-1 text-violet-400">当前卷积模板</div>
+            <div id="kernel-name" class="mb-2 text-slate-200">边缘检测 (Sobel)</div>
+            <div id="kernel-grid" class="kernel-grid"></div>
+        </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="flex-1 flex items-center justify-center p-4">
+        <canvas id="main-canvas" class="max-w-full max-h-full"></canvas>
+    </div>
+
+    <!-- Live Calculation Info (Overlay Bottom) -->
+    <div id="calc-panel" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md text-white p-4 rounded-2xl border border-white/10 w-[90%] md:w-[600px] transition-all transform translate-y-full opacity-0">
+        <div class="flex items-center justify-between gap-4">
+            <div class="flex-1">
+                <div class="text-[10px] text-slate-400 uppercase mb-1">当前窗口计算</div>
+                <div id="calc-formula" class="font-mono text-xs md:text-sm whitespace-nowrap overflow-hidden text-ellipsis">
+                    (-1 * 120) + (0 * 50) + ...
+                </div>
+            </div>
+            <div class="text-right border-l border-white/10 pl-4">
+                <div class="text-[10px] text-slate-400 uppercase mb-1">输出值</div>
+                <div id="calc-result" class="text-xl font-bold text-violet-400">0</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/** 
+ * Simulation Core Logic
+ */
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const mainBtn = document.getElementById('main-btn');
+const resetBtn = document.getElementById('reset-btn');
+const speedSlider = document.getElementById('sim_speed-slider');
+const kernelSelect = document.getElementById('kernel_type-slider');
+const calcPanel = document.getElementById('calc-panel');
+const kernelNameEl = document.getElementById('kernel-name');
+const kernelGridEl = document.getElementById('kernel-grid');
+
+// Constants & Kernels
+const KERNELS = {
+    sobel: [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]],
+    sharpen: [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
+    blur: [[1/9, 1/9, 1/9], [1/9, 1/9, 1/9], [1/9, 1/9, 1/9]],
+    identity: [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+};
+
+const KERNEL_NAMES = {
+    sobel: '边缘检测 (Sobel)',
+    sharpen: '锐化 (Sharpen)',
+    blur: '模糊 (Blur)',
+    identity: '恒等 (Identity)'
+};
+
+const INPUT_DIM = 7;
+const KERNEL_DIM = 3;
+const OUTPUT_DIM = INPUT_DIM - KERNEL_DIM + 1; // 5
+
+// State Management
+let state = {
+    running: false,
+    paused: false,
+    ended: false,
+    progress: 0, // 0 to (OUTPUT_DIM * OUTPUT_DIM - 1)
+    subProgress: 0, // 0 to 1 for animation transition
+    speed: 1,
+    currentKernel: KERNELS.sobel,
+    inputData: [],
+    outputData: [],
+    lastTime: 0
+};
+
+// Initialize Input Data (random but distinct patterns)
+function initData() {
+    state.inputData = [];
+    state.outputData = Array(OUTPUT_DIM * OUTPUT_DIM).fill(null);
+    for (let i = 0; i < INPUT_DIM * INPUT_DIM; i++) {
+        // Create an "edge" pattern by default
+        const col = i % INPUT_DIM;
+        state.inputData.push(col < 3 ? 180 + Math.random() * 50 : 30 + Math.random() * 50);
+    }
+}
+
+function renderKernelDisplay() {
+    const kernel = state.currentKernel;
+    kernelNameEl.innerText = KERNEL_NAMES[kernelSelect.value] || '自定义模板';
+    kernelGridEl.innerHTML = '';
+
+    for (let i = 0; i < KERNEL_DIM; i++) {
+        for (let j = 0; j < KERNEL_DIM; j++) {
+            const cell = document.createElement('div');
+            cell.className = 'kernel-cell';
+            const value = kernel[i][j];
+            cell.innerText = Number.isInteger(value) ? value : value.toFixed(2);
+            kernelGridEl.appendChild(cell);
+        }
+    }
+}
+
+function getValueRange(data) {
+    const values = data.filter(value => value !== null && Number.isFinite(value));
+    if (!values.length) {
+        return { min: 0, max: 1 };
+    }
+    return {
+        min: Math.min(...values),
+        max: Math.max(...values)
+    };
+}
+
+function mapValueToShade(value, range) {
+    if (value === null || !Number.isFinite(value)) {
+        return null;
+    }
+
+    const { min, max } = range;
+    if (max <= min) {
+        return 0.78;
+    }
+
+    const normalized = (value - min) / (max - min);
+    return Math.max(0, Math.min(1, normalized));
+}
+
+function resize() {
+    const container = canvas.parentElement;
+    const size = Math.min(container.clientWidth, container.clientHeight) * 0.95;
+    canvas.width = size;
+    canvas.height = size;
+    draw();
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const padding = 20;
+    const gridSpacing = 40;
+    const availableWidth = canvas.width - padding * 2;
+    
+    // Grid sizing
+    const cellSide = Math.floor(availableWidth / (INPUT_DIM + OUTPUT_DIM + 2));
+    const inputX = padding;
+    const outputX = canvas.width - padding - (OUTPUT_DIM * cellSide);
+    const startY = (canvas.height - (INPUT_DIM * cellSide)) / 2;
+
+    // 1. Draw Input Grid
+    drawGrid(inputX, startY, INPUT_DIM, cellSide, state.inputData, "输入图像 (Input)");
+
+    // 2. Draw Output Grid
+    drawGrid(outputX, startY, OUTPUT_DIM, cellSide, state.outputData, "特征图 (Output)");
+
+    // 3. Draw Kernel & Sliding Box
+    if (state.running || state.paused || state.ended || state.progress > 0) {
+        const row = Math.floor(state.progress / OUTPUT_DIM);
+        const col = state.progress % OUTPUT_DIM;
+
+        // Current source rect in Input
+        const srcX = inputX + col * cellSide;
+        const srcY = startY + row * cellSide;
+        
+        // Highlight active source area
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(srcX, srcY, cellSide * KERNEL_DIM, cellSide * KERNEL_DIM);
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.1)';
+        ctx.fillRect(srcX, srcY, cellSide * KERNEL_DIM, cellSide * KERNEL_DIM);
+
+        // Connection lines to Output
+        const destX = outputX + col * cellSide;
+        const destY = startY + row * cellSide;
+        
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]);
+        ctx.moveTo(srcX + cellSide * KERNEL_DIM, srcY);
+        ctx.lineTo(destX, destY);
+        ctx.moveTo(srcX + cellSide * KERNEL_DIM, srcY + cellSide * KERNEL_DIM);
+        ctx.lineTo(destX, destY + cellSide);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Highlight active output pixel
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(destX, destY, cellSide, cellSide);
+
+        // Update Calculation HUD
+        updateHUD(row, col);
+    }
+}
+
+function drawGrid(x, y, dim, size, data, label) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const range = getValueRange(data);
+    
+    // Label
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(label, x + (dim * size) / 2, y - 20);
+
+    for (let i = 0; i < dim; i++) {
+        for (let j = 0; j < dim; j++) {
+            const val = data[i * dim + j];
+            const cx = x + j * size;
+            const cy = y + i * size;
+
+            // Cell Background
+            const shade = mapValueToShade(val, range);
+            if (shade === null) {
+                ctx.fillStyle = '#1e293b';
+                ctx.strokeStyle = '#334155';
+            } else {
+                const gray = Math.round(35 + shade * 220);
+                ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
+                ctx.strokeStyle = '#475569';
+            }
+            
+            ctx.fillRect(cx, cy, size, size);
+            ctx.strokeRect(cx, cy, size, size);
+
+            // Text value if large enough
+            if (size > 25) {
+                ctx.fillStyle = shade !== null && shade > 0.6 ? '#000' : '#fff';
+                ctx.font = `${Math.floor(size * 0.3)}px monospace`;
+                ctx.fillText(val === null ? '?' : Math.round(val), cx + size / 2, cy + size / 2);
+            }
+        }
+    }
+}
+
+function updateHUD(row, col) {
+    let sum = 0;
+    let formula = "";
+    
+    for (let ki = 0; ki < KERNEL_DIM; ki++) {
+        for (let kj = 0; kj < KERNEL_DIM; kj++) {
+            const inputVal = state.inputData[(row + ki) * INPUT_DIM + (col + kj)];
+            const weight = state.currentKernel[ki][kj];
+            const product = inputVal * weight;
+            sum += product;
+            if (formula.length < 100) {
+                formula += `(${weight.toFixed(1)} * ${Math.round(inputVal)}) + `;
+            }
+        }
+    }
+    
+    state.outputData[row * OUTPUT_DIM + col] = sum;
+    
+    document.getElementById('calc-formula').innerText = formula.slice(0, -3) + "...";
+    document.getElementById('calc-result').innerText = Math.round(sum);
+}
+
+function animate(time) {
+    if (!state.running || state.paused) return;
+
+    const deltaTime = time - state.lastTime;
+    state.lastTime = time;
+
+    // Advance simulation
+    state.subProgress += (deltaTime / 1000) * state.speed;
+    
+    if (state.subProgress >= 1.0) {
+        state.subProgress = 0;
+        state.progress++;
+        
+        if (state.progress >= OUTPUT_DIM * OUTPUT_DIM) {
+            onSimulationEnd();
+        }
+    }
+
+    draw();
+    requestAnimationFrame(animate);
+}
+
+function onSimulationEnd() {
+    state.running = false;
+    state.ended = true;
+    mainBtn.innerText = "重新开始";
+    document.getElementById('status-tag').innerText = "演示完成";
+    calcPanel.style.transform = 'translate(-50%, 100%)';
+    calcPanel.style.opacity = '0';
+}
+
+function startSimulation() {
+    if (state.ended) {
+        resetSimulation();
+    }
+    state.running = true;
+    state.paused = false;
+    state.lastTime = performance.now();
+    mainBtn.innerText = "暂停";
+    document.getElementById('status-tag').innerText = "正在演示...";
+    calcPanel.style.transform = 'translate(-50%, 0)';
+    calcPanel.style.opacity = '1';
+    renderKernelDisplay();
+    requestAnimationFrame(animate);
+}
+
+function pauseSimulation() {
+    state.running = false;
+    state.paused = true;
+    mainBtn.innerText = "继续";
+    document.getElementById('status-tag').innerText = "已暂停";
+}
+
+function resetSimulation() {
+    state.running = false;
+    state.paused = false;
+    state.ended = false;
+    state.progress = 0;
+    state.subProgress = 0;
+    initData();
+    mainBtn.innerText = "启动演示";
+    document.getElementById('status-tag').innerText = "就绪";
+    calcPanel.style.transform = 'translate(-50%, 100%)';
+    calcPanel.style.opacity = '0';
+    renderKernelDisplay();
+    draw();
+}
+
+function applyPreset(type) {
+    kernelSelect.value = type;
+    state.currentKernel = KERNELS[type];
+    renderKernelDisplay();
+    resetSimulation();
+    startSimulation();
+}
+
+// Event Listeners
+mainBtn.addEventListener('click', () => {
+    if (state.running) pauseSimulation();
+    else startSimulation();
+});
+
+resetBtn.addEventListener('click', resetSimulation);
+
+speedSlider.addEventListener('input', (e) => {
+    state.speed = parseFloat(e.target.value);
+    document.getElementById('sim_speed-display').innerText = state.speed.toFixed(1) + 'x';
+});
+
+kernelSelect.addEventListener('change', (e) => {
+    state.currentKernel = KERNELS[e.target.value];
+    renderKernelDisplay();
+    resetSimulation();
+});
+
+window.addEventListener('resize', resize);
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        mainBtn.click();
+    }
+    if (e.code === 'KeyR') resetSimulation();
+});
+
+// Teacher Message Listener
+window.addEventListener('message', function(event) {
+    const { type, target, state: newState, content } = event.data;
+    switch (type) {
+        case 'SET_WIDGET_STATE':
+            if (newState) {
+                if (newState.kernel_type) {
+                    const val = newState.kernel_type === "边缘检测" ? "sobel" : 
+                                newState.kernel_type === "模糊" ? "blur" :
+                                newState.kernel_type === "锐化" ? "sharpen" : "identity";
+                    kernelSelect.value = val;
+                    state.currentKernel = KERNELS[val];
+                }
+                if (newState.sim_speed) {
+                    speedSlider.value = newState.sim_speed;
+                    state.speed = newState.sim_speed;
+                    document.getElementById('sim_speed-display').innerText = state.speed.toFixed(1) + 'x';
+                }
+                resetSimulation();
+            }
+            break;
+        case 'HIGHLIGHT_ELEMENT':
+            const el = document.querySelector(target);
+            if (el) {
+                el.style.outline = '3px solid rgba(139, 92, 246, 0.8)';
+                el.style.outlineOffset = '4px';
+                el.style.animation = 'pulse-highlight 2s infinite';
+                setTimeout(() => { el.style.outline = ''; el.style.animation = ''; }, 3000);
+            }
+            break;
+    }
+});
+
+// Init
+initData();
+renderKernelDisplay();
+resize();
+
+</script>
+</body>
+</html>

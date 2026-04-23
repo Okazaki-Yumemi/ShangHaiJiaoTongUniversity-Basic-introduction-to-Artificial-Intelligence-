@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>3D 卷积演示：28x28 ➔ 26x26</title>
+    <style>
+        :root {
+            --red-chan: #ff7675;
+            --green-chan: #55efc4;
+            --blue-chan: #74b9ff;
+            --output-color: #a29bfe;
+        }
+        body { font-family: 'PingFang SC', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); max-width: 1200px; width: 100%; position: relative; }
+        h2 { text-align: center; color: #2d3436; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #636e72; font-size: 14px; margin-bottom: 30px; }
+
+        .viz-stage { display: flex; justify-content: space-around; align-items: center; height: 550px; position: relative; perspective: 2000px; }
+
+        /* 3D 堆叠容器 */
+        .stack-container { transform-style: preserve-3d; transform: rotateX(25deg) rotateY(-15deg); position: relative; }
+        
+        /* 28x28 输入层背景（使用背景图案模拟密集格子） */
+        .grid-layer { 
+            width: 280px; height: 280px; 
+            background-size: 10px 10px;
+            background-image: linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+            position: absolute; border: 2px solid;
+        }
+        .grid-r { transform: translateZ(100px); background-color: rgba(255, 118, 117, 0.1); border-color: var(--red-chan); }
+        .grid-g { transform: translateZ(50px); background-color: rgba(85, 239, 196, 0.1); border-color: var(--green-chan); }
+        .grid-b { transform: translateZ(0px); background-color: rgba(116, 185, 255, 0.1); border-color: var(--blue-chan); }
+
+        /* 3x3 卷积核覆盖框（对应 30px x 30px） */
+        .kernel-overlay { 
+            position: absolute; width: 30px; height: 30px; 
+            border: 2px solid #f1c40f; box-sizing: border-box; transition: 0.1s linear; pointer-events: none;
+        }
+        .k-r-over { transform: translateZ(101px); background: rgba(255, 118, 117, 0.6); }
+        .k-g-over { transform: translateZ(51px); background: rgba(85, 239, 196, 0.6); }
+        .k-b-over { transform: translateZ(1px); background: rgba(116, 185, 255, 0.6); }
+
+        /* 26x26 输出层 */
+        .output-stage { transform-style: preserve-3d; transform: rotateX(25deg) rotateY(15deg); position: relative; }
+        .output-grid { 
+            width: 260px; height: 260px; 
+            background-color: rgba(162, 155, 254, 0.1); border: 3px solid var(--output-color); border-radius: 4px;
+            background-size: 10px 10px;
+            background-image: linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+            position: relative;
+        }
+        /* 当前输出点 */
+        #active-pixel {
+            position: absolute; width: 10px; height: 10px; background: var(--output-color);
+            box-shadow: 0 0 8px var(--output-color); transition: 0.1s linear;
+        }
+
+        /* 汇聚虚线 SVG */
+        #connector-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 100; }
+        .converge-line { stroke-width: 1.5; stroke-dasharray: 4,3; opacity: 0.8; fill: none; }
+
+        /* 计算看板 */
+        .calc-panel { margin-top: 10px; background: #2d3436; color: #ecf0f1; padding: 15px; border-radius: 10px; font-family: monospace; text-align: center; }
+        
+        .controls { margin-top: 20px; display: flex; gap: 10px; }
+        button { padding: 10px 30px; font-size: 15px; background: #0984e3; color: white; border: none; border-radius: 6px; cursor: pointer; }
+
+        /* 新增：平面 2D 文本图层 */
+        .dim-layer-2d {
+            position: absolute;
+            top: 480px; /* 位于 3D 场景下方 */
+            left: 0;
+            width: 100%;
+            height: 60px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .dim-info-flat {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2d3436;
+            text-align: center;
+            /* 这些属性确保它是平面的，端正显示 */
+            transform: none; 
+            font-family: monospace;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>3D 卷积空间演变：28x28x3 ➔ 26x26x1</h2>
+    <div class="subtitle">卷积核大小: 3x3 | 步长: 1 | 无填充 (Valid Padding)</div>
+    
+    <div class="viz-stage">
+        <div class="stack-container">
+            <div class="grid-layer grid-b"></div>
+            <div class="kernel-overlay k-b-over" id="ko-b"></div>
+            <div class="grid-layer grid-g"></div>
+            <div class="kernel-overlay k-g-over" id="ko-g"></div>
+            <div class="grid-layer grid-r"></div>
+            <div class="kernel-overlay k-r-over" id="ko-r"></div>
+            </div>
+
+        <div style="font-size: 40px; color: #dfe6e9;">➔</div>
+
+        <div class="output-stage">
+            <div class="output-grid">
+                <div id="active-pixel"></div>
+            </div>
+            </div>
+
+        <svg id="connector-svg">
+            <path id="line-r" class="converge-line" stroke="#ff7675" d="M0 0 L0 0" />
+            <path id="line-g" class="converge-line" stroke="#55efc4" d="M0 0 L0 0" />
+            <path id="line-b" class="converge-line" stroke="#74b9ff" d="M0 0 L0 0" />
+        </svg>
+    </div>
+
+    <div class="dim-layer-2d">
+        <div class="dim-info-flat" style="margin-left: 100px; width: 280px;">Input: 28 x 28 x 3</div>
+        <div class="dim-info-flat" style="margin-left: 200px; width: 260px;">Output: 26 x 26 x 1</div>
+    </div>
+
+    <div class="calc-panel">
+        计算公式：(28 - 3) / 1 + 1 = <b>26</b> 像素
+        <div id="pos-info" style="font-size: 13px; color: #adb5bd; margin-top: 5px;">当前滑动位置：(0, 0)</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="toggleAuto()">开始/停止 自动滑动</button>
+        <button onclick="reset()" style="background:#95a5a6; margin-left: 10px;">重置</button>
+    </div>
+</div>
+
+<script>
+    let posX = 0;
+    let posY = 0;
+    let isAuto = false;
+    let timer = null;
+
+    function move() {
+        // 更新卷积核位置 (每一个格子 10px)
+        const left = posX * 10;
+        const top = posY * 10;
+        
+        document.getElementById('ko-r').style.left = left + 'px';
+        document.getElementById('ko-r').style.top = top + 'px';
+        document.getElementById('ko-g').style.left = left + 'px';
+        document.getElementById('ko-g').style.top = top + 'px';
+        document.getElementById('ko-b').style.left = left + 'px';
+        document.getElementById('ko-b').style.top = top + 'px';
+
+        // 更新输出点位置
+        document.getElementById('active-pixel').style.left = left + 'px';
+        document.getElementById('active-pixel').style.top = top + 'px';
+
+        document.getElementById('pos-info').innerText = `当前滑动位置：行 ${posY}, 列 ${posX}`;
+        
+        updateLines();
+
+        // 逻辑控制
+        posX++;
+        if(posX >= 26) {
+            posX = 0;
+            posY++;
+        }
+        if(posY >= 26) {
+            reset();
+        }
+    }
+
+    function updateLines() {
+        const svg = document.getElementById('connector-svg');
+        const sRect = svg.getBoundingClientRect();
+
+        const getPt = (id) => {
+            const r = document.getElementById(id).getBoundingClientRect();
+            return { x: r.left - sRect.left + r.width/2, y: r.top - sRect.top + r.height/2 };
+        };
+
+        const target = getPt('active-pixel');
+        
+        document.getElementById('line-r').setAttribute('d', `M ${getPt('ko-r').x} ${getPt('ko-r').y} L ${target.x} ${target.y}`);
+        document.getElementById('line-g').setAttribute('d', `M ${getPt('ko-g').x} ${getPt('ko-g').y} L ${target.x} ${target.y}`);
+        document.getElementById('line-b').setAttribute('d', `M ${getPt('ko-b').x} ${getPt('ko-b').y} L ${target.x} ${target.y}`);
+    }
+
+    function toggleAuto() {
+        isAuto = !isAuto;
+        if(isAuto) {
+            timer = setInterval(move, 150);
+        } else {
+            clearInterval(timer);
+        }
+    }
+
+    function reset() {
+        clearInterval(timer);
+        isAuto = false;
+        posX = 0; posY = 0;
+        move();
+    }
+
+    window.onload = () => { move(); };
+</script>
+
+</body>
+</html>

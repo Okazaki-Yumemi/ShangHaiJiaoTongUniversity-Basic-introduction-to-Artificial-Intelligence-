@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>残差连接模拟器 - 3D 梯度流可视化</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a0a1a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    #canvas-container { width: 100%; height: 100%; position: relative; }
+    canvas { display: block; }
+
+    #loading {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #0a0a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #aaa;
+      z-index: 1000;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #333;
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #controls {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: rgba(15, 15, 25, 0.9);
+      backdrop-filter: blur(15px);
+      padding: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: center;
+      align-items: center;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      z-index: 100;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 120px;
+    }
+
+    label {
+      font-size: 12px;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    button {
+      padding: 12px 18px;
+      border: none;
+      border-radius: 10px;
+      background: #27272a;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      min-height: 48px;
+    }
+
+    button:hover { background: #3f3f46; transform: translateY(-1px); }
+    button:active { transform: translateY(1px); }
+    button.primary { background: #6366f1; }
+    button.primary:hover { background: #4f46e5; }
+    button.toggle-on { background: #10b981; }
+
+    .zoom-btns { display: flex; gap: 8px; }
+    .zoom-btns button { width: 48px; font-size: 20px; }
+
+    #info {
+      position: absolute;
+      top: 20px; left: 20px;
+      background: rgba(15, 15, 25, 0.8);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      border-radius: 16px;
+      max-width: 320px;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #e2e8f0;
+      pointer-events: none;
+    }
+
+    #info h2 { font-size: 18px; color: #fbbf24; margin-bottom: 10px; }
+    #info p { font-size: 14px; line-height: 1.6; color: #94a3b8; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 10px;
+      background: #334155;
+    }
+
+    @media (max-width: 600px) {
+      #info { display: none; }
+      #controls { padding: 15px 10px 30px; }
+      button { padding: 10px 14px; font-size: 13px; }
+    }
+  </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body>
+  <div id="loading">
+    <div style="text-align:center;">
+      <div class="spinner" style="margin: 0 auto 16px;"></div>
+      <p>正在初始化残差模拟器...</p>
+    </div>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <div id="info">
+    <h2>残差连接 (ResNet)</h2>
+    <p id="desc-text">在深层网络中，梯度在反向传播时容易消失。残差连接（快捷路径）允许梯度直接跨层流动，保护信息完整性。</p>
+    <div id="status-display" class="status-badge">当前模式: 普通卷积层</div>
+  </div>
+
+  <div id="controls">
+    <button id="toggle-shortcut" class="primary">开启残差连接</button>
+    <button id="trigger-backward">反向传播 (梯度流)</button>
+    
+    <div class="control-group">
+      <label>梯度流速</label>
+      <input type="range" id="speed-slider" min="0.5" max="3" step="0.1" value="1.5">
+    </div>
+
+    <div class="zoom-btns">
+      <button id="zoom-in-btn" title="放大">+</button>
+      <button id="zoom-out-btn" title="缩小">−</button>
+    </div>
+    
+    <button id="reset-btn">重置视角</button>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // 核心状态
+    const state = {
+      shortcutEnabled: false,
+      isFlowing: false,
+      flowSpeed: 1.5,
+      gradientStrength: 1.0,
+      layers: 5
+    };
+
+    const objects = {
+      plainLayers: [],
+      shortcuts: [],
+      particles: [],
+      paths: []
+    };
+
+    let scene, camera, renderer, controls, clock;
+
+    async function init() {
+      try {
+        const container = document.getElementById('canvas-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        // 场景与渲染器
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+        scene.fog = new THREE.Fog(0x0a0a1a, 10, 50);
+
+        camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 1000);
+        camera.position.set(12, 8, 15);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        clock = new THREE.Clock();
+
+        // 灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444488, 0.8);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(5, 15, 10);
+        scene.add(dirLight);
+
+        createNetwork();
+        setupEventListeners();
+        animate();
+
+        document.getElementById('loading').style.display = 'none';
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 创建网络层级结构
+    function createNetwork() {
+      const layerSpacing = 4;
+      const startX = -(state.layers - 1) * layerSpacing / 2;
+
+      // 材质
+      const layerMat = new THREE.MeshStandardMaterial({ 
+        color: 0x475569, 
+        roughness: 0.3, 
+        metalness: 0.2,
+        transparent: true,
+        opacity: 0.9
+      });
+
+      for (let i = 0; i < state.layers; i++) {
+        // 创建 Block
+        const group = new THREE.Group();
+        group.position.x = startX + i * layerSpacing;
+
+        const boxGeo = new THREE.BoxGeometry(1.5, 2, 1.5);
+        const mesh = new THREE.Mesh(boxGeo, layerMat.clone());
+        group.add(mesh);
+        
+        // 文字标签（简单图形代表）
+        const coreGeo = new THREE.BoxGeometry(0.8, 1.2, 0.8);
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0x6366f1, wireframe: true });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        group.add(core);
+
+        scene.add(group);
+        objects.plainLayers.push({ group, mesh, core });
+
+        // 连接主路径
+        if (i < state.layers - 1) {
+          const arrowLine = createArrow(
+            new THREE.Vector3(startX + i * layerSpacing + 0.8, 0, 0),
+            new THREE.Vector3(startX + (i+1) * layerSpacing - 0.8, 0, 0),
+            0x334155
+          );
+          scene.add(arrowLine);
+        }
+
+        // 创建残差路径 (Shortcut)
+        if (i > 0 && i % 2 === 0) {
+          const from = new THREE.Vector3(startX + (i-2) * layerSpacing - 0.8, 0, 1);
+          const to = new THREE.Vector3(startX + i * layerSpacing - 0.8, 0, 1);
+          const shortcut = createCurvedPath(from, to);
+          shortcut.visible = state.shortcutEnabled;
+          scene.add(shortcut);
+          objects.shortcuts.push(shortcut);
+        }
+      }
+    }
+
+    function createArrow(from, to, color) {
+      const dir = new THREE.Vector3().subVectors(to, from);
+      const length = dir.length();
+      const arrowHelper = new THREE.ArrowHelper(dir.normalize(), from, length, color, 0.4, 0.3);
+      return arrowHelper;
+    }
+
+    function createCurvedPath(from, to) {
+      const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+      mid.y += 2.5; // 向上拱起
+      mid.z += 1.0;
+
+      const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+      const points = curve.getPoints(30);
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ color: 0x10b981, linewidth: 2 });
+      
+      const line = new THREE.Line(geometry, material);
+      line.userData.curve = curve; // 存储路径供粒子使用
+      return line;
+    }
+
+    // 梯度粒子系统
+    function spawnGradientFlow() {
+      if (state.isFlowing) return;
+      state.isFlowing = true;
+      
+      const startX = (state.layers - 1) * 4 / 2; // 从右往左流（反向传播）
+      
+      // 清理旧粒子
+      objects.particles.forEach(p => scene.remove(p.mesh));
+      objects.particles = [];
+
+      // 主路径粒子
+      for (let i = 0; i < 15; i++) {
+        setTimeout(() => createParticle(false), i * 150);
+      }
+
+      // 如果开启了残差，创建捷径粒子
+      if (state.shortcutEnabled) {
+        for (let i = 0; i < 10; i++) {
+          setTimeout(() => createParticle(true), i * 200 + 100);
+        }
+      }
+
+      // 3秒后允许再次触发
+      setTimeout(() => { state.isFlowing = false; }, 4000);
+    }
+
+    function createParticle(isShortcut) {
+      const geo = new THREE.SphereGeometry(0.12, 12, 12);
+      const color = isShortcut ? 0x10b981 : 0xfbbf24;
+      const mat = new THREE.MeshStandardMaterial({ 
+        color: color, 
+        emissive: color,
+        emissiveIntensity: 2
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      scene.add(mesh);
+
+      const p = {
+        mesh,
+        progress: 0,
+        isShortcut,
+        speed: (0.005 + Math.random() * 0.005) * state.flowSpeed,
+        attenuation: 1.0 // 梯度衰减
+      };
+      
+      objects.particles.push(p);
+    }
+
+    function updateParticles() {
+      const startX = (state.layers - 1) * 4 / 2;
+      const endX = -startX;
+      const totalDist = startX - endX;
+
+      for (let i = objects.particles.length - 1; i >= 0; i--) {
+        const p = objects.particles[i];
+        p.progress += p.speed;
+
+        if (p.progress >= 1) {
+          scene.remove(p.mesh);
+          objects.particles.splice(i, 1);
+          continue;
+        }
+
+        if (!p.isShortcut) {
+          // 普通路径：线性向左流动，并逐渐变小/变暗（梯度消失模拟）
+          p.mesh.position.x = startX - p.progress * totalDist;
+          p.mesh.position.y = Math.sin(p.progress * 20) * 0.1;
+          p.mesh.position.z = 0;
+          
+          // 消失梯度效果：如果没有残差，梯度随深度(progress)指数衰减
+          if (!state.shortcutEnabled) {
+            const decay = Math.pow(0.15, p.progress);
+            p.mesh.scale.setScalar(0.2 + decay * 0.8);
+            p.mesh.material.opacity = 0.2 + decay * 0.8;
+          }
+        } else {
+          // 残差路径：沿着曲线流动，保持亮度
+          // 找到最近的曲线路径（简化处理：所有快捷粒子走同样的几条路）
+          const curveIdx = Math.floor(p.progress * objects.shortcuts.length);
+          const curve = objects.shortcuts[0].userData.curve; // 演示用，简化
+          const point = curve.getPointAt(1 - p.progress); // 反向运动
+          p.mesh.position.copy(point);
+          p.mesh.scale.setScalar(1.2); // 快捷路径梯度保持饱满
+        }
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      
+      if (controls) controls.update();
+      updateParticles();
+
+      // 旋转 Block 核心增加动感
+      objects.plainLayers.forEach((obj, i) => {
+        obj.core.rotation.y += 0.02;
+        obj.core.rotation.x += 0.01;
+        
+        // 梯度流动时 Block 高亮
+        if (state.isFlowing) {
+          const pulse = Math.sin(Date.now() * 0.005 + i) * 0.5 + 0.5;
+          obj.mesh.material.emissive.setHex(state.shortcutEnabled ? 0x064e3b : 0x451a03);
+          obj.mesh.material.emissiveIntensity = pulse * 0.5;
+        } else {
+          obj.mesh.material.emissive.setHex(0x000000);
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    function setupEventListeners() {
+      const toggleBtn = document.getElementById('toggle-shortcut');
+      const statusDisp = document.getElementById('status-display');
+      const descText = document.getElementById('desc-text');
+
+      toggleBtn.addEventListener('click', () => {
+        state.shortcutEnabled = !state.shortcutEnabled;
+        
+        objects.shortcuts.forEach(s => s.visible = state.shortcutEnabled);
+        
+        if (state.shortcutEnabled) {
+          toggleBtn.textContent = "关闭残差连接";
+          toggleBtn.classList.add('toggle-on');
+          statusDisp.textContent = "当前模式: 残差网络 (ResNet)";
+          statusDisp.style.background = "#065f46";
+          descText.textContent = "残差连接通过'恒等映射'将梯度直接传回浅层，成功解决了 100+ 层深层网络的训练难题。";
+        } else {
+          toggleBtn.textContent = "开启残差连接";
+          toggleBtn.classList.remove('toggle-on');
+          statusDisp.textContent = "当前模式: 普通卷积层";
+          statusDisp.style.background = "#334155";
+          descText.textContent = "在普通深层网络中，每经过一层权重矩阵，梯度都会因连乘效应而呈指数级缩小，导致深层权重无法更新。";
+        }
+      });
+
+      document.getElementById('trigger-backward').addEventListener('click', spawnGradientFlow);
+
+      document.getElementById('speed-slider').addEventListener('input', (e) => {
+        state.flowSpeed = parseFloat(e.target.value);
+      });
+
+      document.getElementById('zoom-in-btn').addEventListener('click', () => {
+        camera.position.multiplyScalar(0.9);
+      });
+
+      document.getElementById('zoom-out-btn').addEventListener('click', () => {
+        camera.position.multiplyScalar(1.1);
+      });
+
+      document.getElementById('reset-btn').addEventListener('click', () => {
+        camera.position.set(12, 8, 15);
+        controls.target.set(0, 0, 0);
+      });
+
+      window.addEventListener('resize', () => {
+        const container = document.getElementById('canvas-container');
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      });
+
+      // 接收老师端指令
+      window.addEventListener('message', (event) => {
+        const { action, payload } = event.data;
+        switch (action) {
+          case 'SET_WIDGET_STATE': {
+            if (payload.shortcutEnabled !== undefined) {
+              if (payload.shortcutEnabled !== state.shortcutEnabled) toggleBtn.click();
+            }
+            if (payload.triggerFlow) spawnGradientFlow();
+            if (payload.cameraPos) camera.position.set(...payload.cameraPos);
+            break;
+          }
+          case 'HIGHLIGHT_ELEMENT': {
+            const { elementId } = payload;
+            if (elementId === 'plain_layers') {
+              objects.plainLayers.forEach(l => l.mesh.material.color.set(0x6366f1));
+              setTimeout(() => objects.plainLayers.forEach(l => l.mesh.material.color.set(0x475569)), 2000);
+            }
+            break;
+          }
+        }
+      });
+    }
+
+    init();
+  </script>
+
+  <script type="application/json" id="widget-config">
+  {
+    "type": "visualization3d",
+    "visualizationType": "custom",
+    "description": "通过可视化 3D 梯度流，观察带有残差连接和不带残差连接的网络在训练时的表现。",
+    "objects": [
+      { "id": "plain_layers", "type": "group", "description": "标准卷积层序列" },
+      { "id": "shortcut_path", "type": "curve", "description": "跨层恒等映射路径" },
+      { "id": "gradient_particles", "type": "particles", "description": "代表反向传播中的梯度强度" }
+    ],
+    "interactions": [
+      { "type": "toggle", "param": "shortcutEnabled", "label": "残差连接" },
+      { "type": "button", "action": "backward_pass_trigger", "label": "执行反向传播" },
+      { "type": "slider", "param": "flowSpeed", "min": 0.5, "max": 3, "default": 1.5 }
+    ],
+    "presets": [
+      { "name": "消失的梯度", "state": { "shortcutEnabled": false } },
+      { "name": "健康的梯度流", "state": { "shortcutEnabled": true } }
+    ]
+  }
+  </script>
+</body>
+</html>

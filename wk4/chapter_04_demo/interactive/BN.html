@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="BatchNorm2d深度教学演示 - 离线版">
+    <title>BatchNorm2d 深度教学演示</title>
+    <style>
+        :root { 
+            --c0: #ff6b6b; 
+            --c1: #51cf66; 
+            --c2: #339af0; 
+        }
+        body { 
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); 
+            padding: 20px; 
+            color: #333; 
+            margin: 0;
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+        }
+        
+        /* 顶部说明栏 */
+        .header-info {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 1.1em;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header-info strong {
+            color: #ffd93d;
+        }
+
+        /* 控制面板 */
+        .panel { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            text-align: center; 
+        }
+        .step-indicator { 
+            font-size: 1.4em; 
+            font-weight: 700; 
+            color: #2c3e50; 
+            margin-bottom: 10px; 
+        }
+        .sub-step { 
+            color: #666; 
+            margin-bottom: 20px; 
+            min-height: 1.5em; 
+        }
+
+        /* 统计看板 */
+        .stats-row { 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            margin-bottom: 20px; 
+            flex-wrap: wrap;
+        }
+        .stat-card { 
+            width: 180px; 
+            padding: 15px; 
+            border-radius: 10px; 
+            background: #eee; 
+            border: 2px solid transparent; 
+            transition: all 0.4s; 
+            opacity: 0.5; 
+        }
+        .stat-card.active { 
+            opacity: 1; 
+            border-color: #333; 
+            transform: translateY(-5px); 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
+        }
+        .stat-card h4 { 
+            margin: 0 0 10px 0; 
+            border-bottom: 1px solid rgba(0,0,0,0.1); 
+        }
+        .stat-val { 
+            font-family: 'Consolas', 'Monaco', monospace; 
+            font-size: 0.95em; 
+            line-height: 1.6; 
+        }
+
+        /* 按钮样式 */
+        .btn-group { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            flex-wrap: wrap;
+        }
+        button { 
+            padding: 12px 30px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            border: none; 
+            border-radius: 8px; 
+            background: #4dabf7; 
+            color: white; 
+            font-weight: 600; 
+            transition: all 0.2s; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button:hover { 
+            background: #339af0; 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        button:disabled { 
+            background: #adb5bd; 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: none;
+        }
+        .reset-btn {
+            background: #868e96;
+        }
+        .reset-btn:hover {
+            background: #495057;
+        }
+
+        /* Batch说明标签 */
+        .batch-label {
+            text-align: center;
+            font-size: 1.2em;
+            color: #495057;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        /* 特征图网络 */
+        .batch-grid { 
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 20px; 
+        }
+        .sample-box { 
+            background: white; 
+            padding: 15px; 
+            border-radius: 12px; 
+            border: 1px solid #dee2e6;
+            transition: transform 0.2s;
+        }
+        .sample-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        .sample-title { 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+            color: #2c3e50;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .sample-icon {
+            font-size: 1.2em;
+        }
+        
+        .channels-wrapper { 
+            display: flex; 
+            gap: 10px; 
+            justify-content: center; 
+        }
+        .channel-column { 
+            flex: 1; 
+            text-align: center; 
+        }
+        .grid-5x5 { 
+            display: grid; 
+            grid-template-columns: repeat(5, 28px); 
+            gap: 1px; 
+            background: #ced4da; 
+            border: 1px solid #ced4da; 
+            margin: 0 auto; 
+        }
+        .cell { 
+            width: 28px; 
+            height: 28px; 
+            background: white; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 10px; 
+            transition: background 0.5s, color 0.5s, transform 0.3s; 
+            font-family: 'Consolas', monospace;
+        }
+        
+        /* 状态标记 */
+        .highlight-eval { 
+            outline: 3px solid #333; 
+            outline-offset: 2px; 
+            z-index: 10; 
+            border-radius: 4px;
+        }
+        .highlight-eval .cell { 
+            background: #fff9db; 
+        }
+        .is-normalized { 
+            font-weight: bold;
+            color: #1864ab;
+            background: #e7f5ff !important;
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .batch-grid {
+                grid-template-columns: 1fr;
+            }
+            .stat-card {
+                width: 140px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 顶部说明 -->
+    <div class="header-info">
+        🎯 当前显示：<strong>同一个Batch（批次）里的 4 张不同照片</strong> — 观察BatchNorm如何跨样本计算同一通道的统计量
+    </div>
+
+    <div class="panel">
+        <div class="step-indicator" id="main-step">准备就绪</div>
+        <div class="sub-step" id="sub-step">输入数据：Batch=4张照片, Channels=3个特征通道, 每通道Size=5×5像素</div>
+        
+        <div class="stats-row">
+            <div id="stat-0" class="stat-card" style="background-color: #fff5f5; color: var(--c0);">
+                <h4>Channel 0 (R/边缘)</h4>
+                <div class="stat-val" id="val-0">均值: --<br>方差: --</div>
+            </div>
+            <div id="stat-1" class="stat-card" style="background-color: #f4fce3; color: var(--c1);">
+                <h4>Channel 1 (G/纹理)</h4>
+                <div class="stat-val" id="val-1">均值: --<br>方差: --</div>
+            </div>
+            <div id="stat-2" class="stat-card" style="background-color: #e7f5ff; color: var(--c2);">
+                <h4>Channel 2 (B/形状)</h4>
+                <div class="stat-val" id="val-2">均值: --<br>方差: --</div>
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button id="action-btn" onclick="handleFlow()">开始教学演示</button>
+            <button class="reset-btn" onclick="location.reload()">🔄 重置随机数据</button>
+        </div>
+    </div>
+
+    <div class="batch-label">📦 Batch 内的 4 个样本（小猫、猴子、香蕉、汽车）</div>
+    <div class="batch-grid" id="tensor-display"></div>
+</div>
+
+<script>
+    const N = 4, C = 3, H = 5, W = 5;
+    // 直观的样本名称（取代冷冰冰的数字0,1,2,3）
+    const sampleNames = ['小猫 🐱', '猴子 🐵', '香蕉 🍌', '汽车 🚗'];
+    const sampleIcons = ['🐱', '🐵', '🍌', '🚗'];
+    let data = [];
+    let currentChannel = 0;
+    let stage = 'START'; // START -> CALC -> APPLY -> DONE
+    let currentStats = { mean: 0, var: 0 };
+
+    // 初始化随机数据
+    function init() {
+        for (let n = 0; n < N; n++) {
+            let sample = [];
+            for (let c = 0; c < C; c++) {
+                // 为不同样本和通道生成有区分度的随机数据
+                let baseVal = 20 + n * 10 + c * 15;
+                sample.push(Array.from({length: H*W}, () => Math.floor(Math.random() * 40 + baseVal)));
+            }
+            data.push(sample);
+        }
+        render();
+    }
+
+    function render() {
+        const container = document.getElementById('tensor-display');
+        container.innerHTML = '';
+        
+        for (let n = 0; n < N; n++) {
+            const sampleDiv = document.createElement('div');
+            sampleDiv.className = 'sample-box';
+            // 去掉括号里的Batch，直接用直观名称
+            sampleDiv.innerHTML = `
+                <div class="sample-title">
+                    <span class="sample-icon">${sampleIcons[n]}</span>
+                    <span>${sampleNames[n]}</span>
+                </div>
+            `;
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'channels-wrapper';
+            
+            for (let c = 0; c < C; c++) {
+                const col = document.createElement('div');
+                col.className = 'channel-column';
+                // 高亮正在计算统计指标的通道
+                if (stage === 'CALC' && c === currentChannel) col.classList.add('highlight-eval');
+                
+                col.innerHTML = `<div style="font-size:11px; color:var(--c${c}); font-weight:600; margin-bottom:4px;">C${c}通道</div>`;
+                
+                const grid = document.createElement('div');
+                grid.className = 'grid-5x5';
+                
+                data[n][c].forEach(val => {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    if (typeof val === 'number' && val % 1 !== 0) {
+                        // 归一化后的小数显示1位，并添加样式
+                        cell.innerText = val.toFixed(1);
+                        cell.classList.add('is-normalized');
+                    } else {
+                        cell.innerText = Math.round(val);
+                    }
+                    grid.appendChild(cell);
+                });
+                
+                col.appendChild(grid);
+                wrapper.appendChild(col);
+            }
+            sampleDiv.appendChild(wrapper);
+            container.appendChild(sampleDiv);
+        }
+    }
+
+    function handleFlow() {
+        const btn = document.getElementById('action-btn');
+        const mainTitle = document.getElementById('main-step');
+        const subTitle = document.getElementById('sub-step');
+
+        if (stage === 'START' || stage === 'APPLY') {
+            // 进入"计算"阶段
+            if (stage === 'APPLY') currentChannel++;
+            if (currentChannel >= C) {
+                stage = 'DONE';
+                mainTitle.innerText = "🎉 全部完成";
+                subTitle.innerText = `所有 ${C} 个通道已完成标准化（跨4张照片的BatchNorm）`;
+                btn.disabled = true;
+                btn.innerText = "演示结束";
+                // 移除所有高亮
+                document.querySelectorAll('.highlight-eval').forEach(el => el.classList.remove('highlight-eval'));
+                return;
+            }
+
+            stage = 'CALC';
+            // 计算当前通道在所有N个样本上的均值方差（BatchNorm核心）
+            let allPixels = [];
+            for (let n = 0; n < N; n++) allPixels.push(...data[n][currentChannel]);
+            const sum = allPixels.reduce((a, b) => a + b, 0);
+            const mean = sum / allPixels.length;
+            const variance = allPixels.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / allPixels.length;
+            currentStats = { mean, variance };
+
+            // 更新 UI 看板
+            document.querySelectorAll('.stat-card').forEach(el => el.classList.remove('active'));
+            const card = document.getElementById(`stat-${currentChannel}`);
+            card.classList.add('active');
+            document.getElementById(`val-${currentChannel}`).innerHTML = 
+                `均值 μ: ${mean.toFixed(2)}<br>方差 σ²: ${variance.toFixed(2)}`;
+
+            mainTitle.innerText = `步骤 1：计算通道 ${currentChannel} 统计指标`;
+            subTitle.innerText = `跨 Batch 收集 ${sampleNames.join('、')} 的 C${currentChannel} 数据（共 ${N*H*W} 个像素）计算均值和方差...`;
+            btn.innerText = `对通道 ${currentChannel} 执行归一化 →`;
+            render();
+
+        } else if (stage === 'CALC') {
+            // 进入"应用"阶段
+            stage = 'APPLY';
+            const { mean, variance } = currentStats;
+            const std = Math.sqrt(variance + 1e-5);
+
+            // 应用归一化公式：(x - mean) / std
+            for (let n = 0; n < N; n++) {
+                data[n][currentChannel] = data[n][currentChannel].map(x => (x - mean) / std);
+            }
+
+            mainTitle.innerText = `步骤 2：归一化通道 ${currentChannel}`;
+            subTitle.innerText = `使用公式 (x - ${mean.toFixed(1)}) / ${std.toFixed(2)} 更新 ${sampleNames.join('、')} 的数值。观察蓝色高亮值的变化！`;
+            
+            if (currentChannel < C - 1) {
+                btn.innerText = `继续处理下一个通道 →`;
+            } else {
+                btn.innerText = `✅ 完成全部通道`;
+            }
+            render();
+        }
+    }
+
+    // 启动
+    init();
+</script>
+
+</body>
+</html>
