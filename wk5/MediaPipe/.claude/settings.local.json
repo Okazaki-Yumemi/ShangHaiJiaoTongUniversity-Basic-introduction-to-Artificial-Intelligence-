@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show *)",
+      "Bash(pip3 show *)",
+      "Bash(python3 -c \"import mediapipe; print\\(mediapipe.__version__\\)\")",
+      "Bash(pip3 list *)",
+      "Bash(pip list *)",
+      "Bash(python3 -c \"import mediapipe\")",
+      "Bash(python3 -c ' *)",
+      "WebSearch",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:developers.google.com)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('/Users/yanluojia/Cowork/AI-demo/demo_02_gesture_two.ipynb'\\)\\)\")",
+      "Bash(python3)"
+    ]
+  }
+}

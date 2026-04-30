@@ -1,0 +1,18 @@
+path: ./Drink_dataset/
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: cola
+  1: pepsi
+  2: sprite
+  3: fanta
+  4: spring
+  5: ice
+  6: scream
+  7: milk
+  8: red
+  9: king
+
+nc: 10
