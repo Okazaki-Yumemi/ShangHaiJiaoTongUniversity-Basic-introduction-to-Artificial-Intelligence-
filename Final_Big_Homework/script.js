@@ -11,6 +11,7 @@ const state = {
   riskReason: null,
   gate2Choice: null,
   gate2Outcome: null,
+  assistantSource: null,
   chatHistory: [],
 };
 
@@ -41,6 +42,7 @@ function showIntro() {
   state.riskReason = null;
   state.gate2Choice = null;
   state.gate2Outcome = null;
+  state.assistantSource = null;
   state.chatHistory = [];
   window.firstChoice = null;
   window.secondChoice = null;
@@ -248,6 +250,7 @@ function showScene4() {
             <p class="assistant-title">AI反诈助手</p>
             <p class="assistant-subtitle">为你分析可疑短信与风险点</p>
           </div>
+          <span class="assistant-source-badge" id="assistantSourceBadge">离线演示可用</span>
         </div>
 
         <div class="chat-log" id="chatLog" aria-live="polite"></div>
@@ -280,19 +283,19 @@ function initAssistantChat() {
   renderRiskAwarenessCard();
 
   storyStage.querySelectorAll("[data-prompt]").forEach((button) => {
-    button.addEventListener("click", () => sendAssistantMessage(button.dataset.prompt));
+    button.addEventListener("click", () => sendAssistantMessage(button.dataset.prompt, "scholarship_sms"));
   });
 
   bindClick("[data-action='send-chat']", () => {
     const input = storyStage.querySelector("#chatInput");
-    sendAssistantMessage(input.value);
+    sendAssistantMessage(input.value, "scholarship_sms");
     input.value = "";
   });
 
   const input = storyStage.querySelector("#chatInput");
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-      sendAssistantMessage(input.value);
+      sendAssistantMessage(input.value, "scholarship_sms");
       input.value = "";
     }
   });
@@ -300,20 +303,37 @@ function initAssistantChat() {
   bindClick("[data-action='finish-judgement']", showSafeEnding);
 }
 
-async function sendAssistantMessage(userText) {
+async function sendAssistantMessage(userText, scenario) {
   const trimmedText = userText.trim();
   if (!trimmedText) {
     return;
   }
 
   appendChatMessage("user", trimmedText);
-  const result = await callAntiFraudAssistant(trimmedText);
-  updateRiskAwareness(trimmedText, result);
-  appendChatMessage("assistant", result.reply);
-  renderRiskAwarenessCard();
+  setAssistantBusy(true);
+  const pendingBubble = appendChatMessage("assistant", "AI 正在分析……", null, { temporary: true });
+
+  try {
+    const result = await callAntiFraudAssistant(trimmedText, scenario);
+    updateRiskAwareness(trimmedText, result);
+    pendingBubble.textContent = result.reply;
+    state.chatHistory.push({ role: "assistant", text: result.reply, riskAwareness: result.riskAwareness || null, source: result.source });
+    setAssistantSource(result.source);
+    renderRiskAwarenessCard();
+  } catch (error) {
+    const result = getMockAntiFraudReply(trimmedText, scenario);
+    updateRiskAwareness(trimmedText, result);
+    pendingBubble.textContent = result.reply;
+    state.chatHistory.push({ role: "assistant", text: result.reply, riskAwareness: result.riskAwareness || null, source: result.source });
+    setAssistantSource(result.source);
+    renderRiskAwarenessCard();
+    console.warn("AI assistant fallback:", error);
+  } finally {
+    setAssistantBusy(false);
+  }
 }
 
-function appendChatMessage(role, text, riskAwareness) {
+function appendChatMessage(role, text, riskAwareness, options = {}) {
   const chatLog = storyStage.querySelector("#chatLog");
   const bubble = document.createElement("div");
   bubble.className = `chat-bubble ${role}`;
@@ -328,14 +348,101 @@ function appendChatMessage(role, text, riskAwareness) {
     chatLog.appendChild(tag);
   }
 
-  state.chatHistory.push({ role, text, riskAwareness: riskAwareness || null });
+  if (!options.temporary) {
+    state.chatHistory.push({ role, text, riskAwareness: riskAwareness || null });
+  }
   chatLog.scrollTop = chatLog.scrollHeight;
+  return bubble;
 }
 
-async function callAntiFraudAssistant(userText) {
-  // 当前阶段使用本地 mock 规则。后续接入真实 LLM 时，只需替换此函数内部实现并保持返回结构一致。
+function setAssistantBusy(isBusy) {
+  const input = storyStage.querySelector("#chatInput");
+  const sendButton = storyStage.querySelector("[data-action='send-chat']");
+  const quickButtons = storyStage.querySelectorAll("[data-prompt]");
+
+  if (input) {
+    input.disabled = isBusy;
+  }
+
+  if (sendButton) {
+    sendButton.disabled = isBusy;
+  }
+
+  quickButtons.forEach((button) => {
+    button.disabled = isBusy;
+  });
+}
+
+function setAssistantSource(source) {
+  state.assistantSource = source;
+  const badge = storyStage.querySelector("#assistantSourceBadge");
+  if (!badge) {
+    return;
+  }
+
+  badge.textContent = source === "llm" ? "实时 AI 分析" : "离线演示模式";
+  badge.classList.toggle("is-live", source === "llm");
+}
+
+async function callAntiFraudAssistant(userText, scenario) {
+  try {
+    return await requestRealAntiFraudReply(userText, scenario);
+  } catch (error) {
+    console.warn("Real AI request failed, using mock fallback:", error);
+    return getMockAntiFraudReply(userText, scenario);
+  }
+}
+
+async function requestRealAntiFraudReply(userText, scenario) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch("http://127.0.0.1:5000/api/anti-fraud-chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        scenario,
+        userText,
+        firstChoice: state.firstChoice,
+        secondChoice: state.secondChoice,
+        gate2Choice: state.gate2Choice,
+        currentRiskAwareness: state.riskAwareness,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (
+      typeof data.reply !== "string" ||
+      !["警惕型", "犹豫型", "轻信型"].includes(data.riskAwareness) ||
+      typeof data.riskReason !== "string"
+    ) {
+      throw new Error("Backend response shape is invalid");
+    }
+
+    return {
+      reply: data.reply,
+      riskAwareness: data.riskAwareness,
+      riskReason: data.riskReason,
+      source: "llm",
+    };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function getMockAntiFraudReply(userText, scenario) {
+  // 离线演示规则。真实 LLM 不可用时，前端会自动回退到这里。
   const text = userText.toLowerCase();
   const isGate2Context =
+    scenario === "campus_payment_help" ||
     state.currentScene === "gate2AI" ||
     text.includes("代付") ||
     text.includes("扫码") ||
@@ -357,6 +464,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "陌生人求助不一定都是诈骗，但一旦涉及扫码、代付、转账，就要提高警惕。不建议直接发生资金交易，更稳妥的方式是引导对方去保卫处、服务台、老师或校园值班点寻求帮助。",
       riskAwareness: "警惕型",
       riskReason: "用户主动询问线下求助是否可信，说明已经意识到资金交易风险。",
+      source: "mock",
     };
   }
 
@@ -375,6 +483,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "代付类求助容易利用同情心和紧迫感。风险点包括：对方身份难核实，小额代付可能只是试探，后续可能升级金额，也可能引导你下载 App、进入群聊或继续扫码转账。",
       riskAwareness: "警惕型",
       riskReason: "用户关注代付和扫码风险点，具备主动识别套路的倾向。",
+      source: "mock",
     };
   }
 
@@ -393,6 +502,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "可以提供非资金型帮助，例如陪同对方去保卫处、服务台、辅导员办公室或校园值班点。不建议直接扫码或转账；如果对方拒绝官方帮助、坚持让你付款，就更应提高警惕。",
       riskAwareness: "警惕型",
       riskReason: "用户倾向寻找安全帮助方式，能在善意和边界之间做平衡。",
+      source: "mock",
     };
   }
 
@@ -409,6 +519,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "这条短信存在明显风险，不建议直接相信。它通过陌生链接引导你完成“资格确认”，这类通知应优先通过学校官网、教务平台或辅导员渠道核实，不要立即填写个人敏感信息。",
       riskAwareness: "警惕型",
       riskReason: "用户主动询问短信可信度，说明已经开始核实来源。",
+      source: "mock",
     };
   }
 
@@ -424,6 +535,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "它至少有三处可疑：第一，用“24小时内”“逾期作废”制造紧迫感；第二，链接域名不像学校官方地址；第三，通知内容会进一步诱导你填写身份证、银行卡、验证码等敏感信息。",
       riskAwareness: "警惕型",
       riskReason: "用户在追问可疑点，具备较强的风险识别意识。",
+      source: "mock",
     };
   }
 
@@ -440,6 +552,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "建议先停止继续操作，不要填写任何敏感信息。你可以截图保留短信内容，再通过辅导员、学院通知群、教务系统等官方渠道核实。如果确认可疑，可直接删除并提醒同学注意。",
       riskAwareness: "警惕型",
       riskReason: "用户开始寻找正确处理方式，说明已经从冲动操作转向核实。",
+      source: "mock",
     };
   }
 
@@ -448,6 +561,7 @@ async function callAntiFraudAssistant(userText) {
       reply: "凡是陌生页面索要身份证号、银行卡号、验证码或账号密码，都应视为高风险。验证码尤其不能提供，它可能被用于登录、转账或重置账号。",
       riskAwareness: "犹豫型",
       riskReason: "用户关注到了敏感信息，但仍需要进一步明确风险边界。",
+      source: "mock",
     };
   }
 
@@ -455,6 +569,7 @@ async function callAntiFraudAssistant(userText) {
     reply: "面对涉及奖学金、补贴、账户确认等消息时，先核实来源再行动最稳妥。只要它要求你点击陌生链接或提交敏感信息，就应提高警惕。",
     riskAwareness: "犹豫型",
     riskReason: "用户提出了泛化问题，已有求助行为，但风险判断还不够明确。",
+    source: "mock",
   };
 }
 
@@ -563,7 +678,7 @@ function renderRiskAwarenessCard() {
     <p class="awareness-title">你的风险识别倾向</p>
     <div class="awareness-result ${getAwarenessClass(state.riskAwareness)}">${state.riskAwareness}</div>
     <p class="awareness-copy">${descriptions[state.riskAwareness]}</p>
-    <p class="awareness-reason">${state.riskReason}</p>
+    <p class="awareness-reason">判定依据：${state.riskReason}</p>
   `;
 }
 
@@ -794,6 +909,7 @@ function showGate2AIAnalysis() {
             <p class="assistant-title">AI反诈助手</p>
             <p class="assistant-subtitle">为你分析代付、扫码与陌生收款码风险</p>
           </div>
+          <span class="assistant-source-badge" id="assistantSourceBadge">离线演示可用</span>
         </div>
 
         <div class="chat-log" id="chatLog" aria-live="polite"></div>
@@ -826,19 +942,19 @@ function initGate2AssistantChat() {
   renderRiskAwarenessCard();
 
   storyStage.querySelectorAll("[data-prompt]").forEach((button) => {
-    button.addEventListener("click", () => sendAssistantMessage(button.dataset.prompt));
+    button.addEventListener("click", () => sendAssistantMessage(button.dataset.prompt, "campus_payment_help"));
   });
 
   bindClick("[data-action='send-chat']", () => {
     const input = storyStage.querySelector("#chatInput");
-    sendAssistantMessage(input.value);
+    sendAssistantMessage(input.value, "campus_payment_help");
     input.value = "";
   });
 
   const input = storyStage.querySelector("#chatInput");
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
-      sendAssistantMessage(input.value);
+      sendAssistantMessage(input.value, "campus_payment_help");
       input.value = "";
     }
   });

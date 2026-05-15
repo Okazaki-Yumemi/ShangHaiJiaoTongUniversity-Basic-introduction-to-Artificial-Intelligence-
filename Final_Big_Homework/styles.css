@@ -439,6 +439,7 @@ button {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .assistant-avatar {
@@ -462,6 +463,23 @@ button {
   margin: 2px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.assistant-source-badge {
+  margin-left: auto;
+  padding: 5px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.assistant-source-badge.is-live {
+  color: #061018;
+  background: var(--success);
+  border-color: transparent;
 }
 
 .chat-log {
@@ -576,6 +594,14 @@ button {
 .quick-button:hover {
   transform: translateY(-1px);
   filter: brightness(1.1);
+}
+
+.primary-button:disabled,
+.quick-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  transform: none;
+  filter: none;
 }
 
 .chat-input-row {
