@@ -184,6 +184,8 @@ button {
 .message-card,
 .fake-form-card,
 .risk-card,
+.situation-card,
+.next-card,
 .awareness-card,
 .chat-card {
   border: 1px solid rgba(103, 211, 255, 0.22);
@@ -368,6 +370,16 @@ button {
   border-color: rgba(255, 123, 138, 0.3);
 }
 
+.situation-card {
+  border-color: rgba(243, 201, 105, 0.28);
+}
+
+.situation-title,
+.next-title {
+  margin: 0 0 10px;
+  font-weight: 800;
+}
+
 .summary-card {
   border-color: rgba(126, 231, 179, 0.28);
 }
@@ -383,6 +395,30 @@ button {
   padding-left: 20px;
   color: #dbe6f6;
   line-height: 1.8;
+}
+
+.safe-card {
+  border-color: rgba(126, 231, 179, 0.28);
+}
+
+.coming-card {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 30px;
+  border: 1px solid rgba(103, 211, 255, 0.24);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.coming-card .ending-title {
+  color: var(--accent);
+}
+
+.next-card {
+  margin: 22px 0;
+  text-align: left;
 }
 
 .assistant-layout {

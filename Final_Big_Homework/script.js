@@ -9,6 +9,8 @@ const state = {
   endingType: null,
   riskAwareness: null,
   riskReason: null,
+  gate2Choice: null,
+  gate2Outcome: null,
   chatHistory: [],
 };
 
@@ -37,11 +39,15 @@ function showIntro() {
   state.endingType = null;
   state.riskAwareness = null;
   state.riskReason = null;
+  state.gate2Choice = null;
+  state.gate2Outcome = null;
   state.chatHistory = [];
   window.firstChoice = null;
   window.secondChoice = null;
   window.endingType = null;
   window.riskAwareness = null;
+  window.gate2Choice = null;
+  window.gate2Outcome = null;
   setSceneMeta("Intro", "intro");
 
   render(`
@@ -329,6 +335,66 @@ function appendChatMessage(role, text, riskAwareness) {
 async function callAntiFraudAssistant(userText) {
   // 当前阶段使用本地 mock 规则。后续接入真实 LLM 时，只需替换此函数内部实现并保持返回结构一致。
   const text = userText.toLowerCase();
+  const isGate2Context =
+    state.currentScene === "gate2AI" ||
+    text.includes("代付") ||
+    text.includes("扫码") ||
+    text.includes("陌生人") ||
+    text.includes("求助") ||
+    text.includes("垫");
+
+  if (
+    isGate2Context &&
+    (
+      text.includes("可信吗") ||
+      text.includes("会不会是骗局") ||
+      text.includes("是不是诈骗") ||
+      text.includes("能不能信") ||
+      text.includes("能信吗")
+    )
+  ) {
+    return {
+      reply: "陌生人求助不一定都是诈骗，但一旦涉及扫码、代付、转账，就要提高警惕。不建议直接发生资金交易，更稳妥的方式是引导对方去保卫处、服务台、老师或校园值班点寻求帮助。",
+      riskAwareness: "警惕型",
+      riskReason: "用户主动询问线下求助是否可信，说明已经意识到资金交易风险。",
+    };
+  }
+
+  if (
+    isGate2Context &&
+    (
+      text.includes("为什么代付有风险") ||
+      text.includes("为什么扫码有风险") ||
+      text.includes("风险点是什么") ||
+      text.includes("有什么问题") ||
+      text.includes("风险点") ||
+      text.includes("风险")
+    )
+  ) {
+    return {
+      reply: "代付类求助容易利用同情心和紧迫感。风险点包括：对方身份难核实，小额代付可能只是试探，后续可能升级金额，也可能引导你下载 App、进入群聊或继续扫码转账。",
+      riskAwareness: "警惕型",
+      riskReason: "用户关注代付和扫码风险点，具备主动识别套路的倾向。",
+    };
+  }
+
+  if (
+    isGate2Context &&
+    (
+      text.includes("我该怎么帮") ||
+      text.includes("怎么处理更安全") ||
+      text.includes("应该怎么办") ||
+      text.includes("如何帮助对方") ||
+      text.includes("怎么帮助") ||
+      text.includes("怎么帮")
+    )
+  ) {
+    return {
+      reply: "可以提供非资金型帮助，例如陪同对方去保卫处、服务台、辅导员办公室或校园值班点。不建议直接扫码或转账；如果对方拒绝官方帮助、坚持让你付款，就更应提高警惕。",
+      riskAwareness: "警惕型",
+      riskReason: "用户倾向寻找安全帮助方式，能在善意和边界之间做平衡。",
+    };
+  }
 
   if (
     text.includes("可信") ||
@@ -419,13 +485,31 @@ function updateRiskAwareness(userText = "", aiResult = null) {
       : "你主动咨询 AI 进行核实，说明具备较强的防骗意识。";
   }
 
+  if (state.gate2Choice === "pay_directly") {
+    awareness = "轻信型";
+    reason = "你倾向直接帮陌生人扫码或代付，容易被紧急求助和小额金额降低警惕。";
+  }
+
+  if (state.gate2Choice === "seek_official_help") {
+    awareness = "警惕型";
+    reason = "你选择引导对方寻求校内官方帮助，既保留善意，也守住了资金边界。";
+  }
+
+  if (state.gate2Choice === "consult_ai") {
+    awareness = "警惕型";
+    reason = "你没有直接付款，而是先咨询 AI 分析风险，具备核实意识。";
+  }
+
   if (
     text.includes("可信吗") ||
     text.includes("是不是诈骗") ||
     text.includes("如何核实") ||
     text.includes("为什么可疑") ||
     text.includes("我该怎么验证") ||
-    text.includes("哪里可疑")
+    text.includes("哪里可疑") ||
+    text.includes("怎么处理更安全") ||
+    text.includes("如何帮助对方") ||
+    text.includes("怎么帮助")
   ) {
     awareness = "警惕型";
     reason = "你的提问集中在核实来源和识别风险点，说明警惕性较强。";
@@ -435,7 +519,8 @@ function updateRiskAwareness(userText = "", aiResult = null) {
     text.includes("看起来像真的") ||
     text.includes("拿不准") ||
     text.includes("要不要点") ||
-    text.includes("会不会错过")
+    text.includes("会不会错过") ||
+    text.includes("就几十块")
   ) {
     awareness = awareness === "轻信型" ? "轻信型" : "犹豫型";
     reason = "你已经意识到不确定性，但仍可能被限时话术影响。";
@@ -444,7 +529,9 @@ function updateRiskAwareness(userText = "", aiResult = null) {
   if (
     text.includes("赶紧填") ||
     text.includes("先点了再说") ||
-    text.includes("应该没问题吧")
+    text.includes("应该没问题吧") ||
+    text.includes("直接扫") ||
+    text.includes("直接付")
   ) {
     awareness = "轻信型";
     reason = "你的表达显示出较强的冲动操作倾向，需要先停下来核实。";
@@ -514,12 +601,306 @@ function showSafeEnding() {
       </section>
 
       <div class="actions">
+        <button class="primary-button" type="button" data-action="continue-campus">继续今天的校园经历</button>
         <button class="primary-button" type="button" data-action="restart">重新开始</button>
       </div>
     </article>
   `);
 
+  bindClick("[data-action='continue-campus']", showScene5);
   bindClick("[data-action='restart']", restartStory);
+}
+
+function showScene5() {
+  state.currentScene = "scene5";
+  setSceneMeta("Scene 05", "campus");
+
+  render(`
+    <article class="screen scene-layout">
+      <div class="visual-panel">
+        <img class="scene-image" src="assets/V5-campus-help.png" alt="校园路边，主角被陌生年轻人拦下求助">
+        <div class="image-vignette"></div>
+      </div>
+
+      <section class="narrative-panel">
+        <p class="scene-kicker">Scene 05 · 校园路边求助</p>
+        <p class="story-text">离开宿舍后，你走在校园路上。一位陌生年轻人忽然叫住你，神情有些焦急，似乎想请你帮个忙。</p>
+        <div class="actions">
+          <button class="primary-button" type="button" data-action="continue-scene6">继续查看</button>
+        </div>
+      </section>
+    </article>
+  `);
+
+  bindClick("[data-action='continue-scene6']", showScene6);
+}
+
+function showScene6() {
+  state.currentScene = "scene6";
+  setSceneMeta("Scene 06", "campus");
+
+  render(`
+    <article class="screen scene-layout">
+      <div class="visual-panel">
+        <img class="scene-image" src="assets/V6-campus-payment-request.png" alt="陌生人展示手机付款码并提出代付请求">
+        <div class="image-vignette"></div>
+      </div>
+
+      <section class="narrative-panel">
+        <p class="scene-kicker">Scene 06 · 代付请求</p>
+        <p class="story-text">对方解释说，自己的支付突然出了问题，想请你帮忙先扫一下这个付款码，或者代付一小笔钱，之后再转给你。事情听起来不算大，但已经涉及金钱交易。</p>
+
+        <section class="situation-card">
+          <p class="situation-title">对方的常见说辞</p>
+          <ul class="risk-list">
+            <li>手机临时没电 / 支付异常</li>
+            <li>微信 / 支付宝限额</li>
+            <li>先帮我垫一下，我马上还你</li>
+            <li>就几十块钱，很快的</li>
+          </ul>
+        </section>
+
+        <div class="actions">
+          <button class="choice-button risky" type="button" data-gate2-choice="pay_directly">直接帮他扫码付款</button>
+          <button class="choice-button safe" type="button" data-gate2-choice="seek_official_help">提议带他去保卫处 / 服务台 / 找老师</button>
+          <button class="choice-button safe" type="button" data-gate2-choice="consult_ai">咨询AI反诈助手</button>
+        </div>
+      </section>
+    </article>
+  `);
+
+  storyStage.querySelectorAll("[data-gate2-choice]").forEach((button) => {
+    button.addEventListener("click", () => handleGate2Choice(button.dataset.gate2Choice));
+  });
+}
+
+function handleGate2Choice(choice) {
+  state.gate2Choice = choice;
+  window.gate2Choice = choice;
+
+  if (choice === "pay_directly") {
+    state.gate2Outcome = "risk";
+    window.gate2Outcome = state.gate2Outcome;
+    updateRiskAwareness("直接帮他扫码付款");
+    showGate2RiskResult();
+    return;
+  }
+
+  if (choice === "seek_official_help") {
+    state.gate2Outcome = "safe";
+    window.gate2Outcome = state.gate2Outcome;
+    updateRiskAwareness("提议带他去保卫处服务台找老师");
+    showGate2SafeResult();
+    return;
+  }
+
+  state.gate2Outcome = "ai";
+  window.gate2Outcome = state.gate2Outcome;
+  updateRiskAwareness("咨询AI反诈助手");
+  showGate2AIAnalysis();
+}
+
+function showGate2RiskResult() {
+  state.currentScene = "gate2Risk";
+  setSceneMeta("Gate 02 Risk", "ending");
+
+  render(`
+    <article class="screen ending-card">
+      <h2 class="ending-title">第二关结果：高风险处理</h2>
+      <p class="ending-copy">你选择直接帮陌生人扫码付款。虽然对方的说辞听起来像普通求助，但一旦涉及陌生人代付、扫码、转账，就存在被骗或被引导进入后续套路的风险。</p>
+
+      <section class="risk-card">
+        <p class="risk-title">风险提示</p>
+        <ul class="risk-list">
+          <li>陌生人线下求助并不一定都是诈骗，但涉及金钱交易应提高警惕</li>
+          <li>小额代付往往利用同情心和不好意思拒绝的心理</li>
+          <li>有些骗局会先用小额试探，再逐步升级金额或引导下载 App</li>
+          <li>更稳妥的方式是提供非资金型帮助，例如陪同找保卫处或服务台</li>
+        </ul>
+      </section>
+
+      <section class="awareness-card" id="riskAwarenessCard"></section>
+
+      <div class="actions">
+        <button class="choice-button safe" type="button" data-action="gate2-ai">咨询AI反诈助手</button>
+        <button class="primary-button" type="button" data-action="coming-soon">继续下一关（开发中）</button>
+        <button class="choice-button" type="button" data-action="restart">重新开始</button>
+      </div>
+    </article>
+  `);
+
+  renderRiskAwarenessCard();
+  bindClick("[data-action='gate2-ai']", showGate2AIAnalysis);
+  bindClick("[data-action='coming-soon']", showComingSoonScene);
+  bindClick("[data-action='restart']", restartStory);
+}
+
+function showGate2SafeResult() {
+  state.currentScene = "gate2Safe";
+  setSceneMeta("Gate 02 Safe", "ending");
+
+  render(`
+    <article class="screen ending-card safe-ending">
+      <h2 class="ending-title">第二关结果：较稳妥的帮助方式</h2>
+      <p class="ending-copy">你没有直接参与金钱交易，而是选择引导对方寻求学校内更可靠的帮助渠道。这种方式既保留了善意，也降低了自己被卷入骗局的风险。</p>
+
+      <section class="risk-card safe-card">
+        <p class="risk-title">安全处理卡片</p>
+        <ul class="risk-list">
+          <li>面对陌生求助，优先提供非资金型帮助</li>
+          <li>可建议对方去保卫处、服务台、辅导员办公室或校园值班点</li>
+          <li>不要因为对方着急，就直接扫码付款或转账</li>
+          <li>保持礼貌，但也要守住边界</li>
+        </ul>
+      </section>
+
+      <section class="awareness-card" id="riskAwarenessCard"></section>
+
+      <div class="actions">
+        <button class="choice-button safe" type="button" data-action="gate2-ai">咨询AI反诈助手</button>
+        <button class="primary-button" type="button" data-action="coming-soon">继续下一关（开发中）</button>
+        <button class="choice-button" type="button" data-action="restart">重新开始</button>
+      </div>
+    </article>
+  `);
+
+  renderRiskAwarenessCard();
+  bindClick("[data-action='gate2-ai']", showGate2AIAnalysis);
+  bindClick("[data-action='coming-soon']", showComingSoonScene);
+  bindClick("[data-action='restart']", restartStory);
+}
+
+function showGate2AIAnalysis() {
+  state.currentScene = "gate2AI";
+  setSceneMeta("Scene 07", "assistant");
+  updateRiskAwareness("陌生人代付请求");
+
+  render(`
+    <article class="screen assistant-layout">
+      <div class="visual-panel">
+        <img class="scene-image" src="assets/V6-campus-payment-request.png" alt="陌生人展示手机付款码并请求代付">
+        <div class="image-vignette"></div>
+      </div>
+
+      <section class="chat-card">
+        <div>
+          <p class="scene-kicker">Scene 07 · AI分析：陌生人代付请求</p>
+          <p class="story-text">你决定先借助 AI 反诈助手分析这次求助，看它是否存在风险。</p>
+        </div>
+
+        <div class="assistant-head">
+          <div class="assistant-avatar" aria-hidden="true">AI</div>
+          <div>
+            <p class="assistant-title">AI反诈助手</p>
+            <p class="assistant-subtitle">为你分析代付、扫码与陌生收款码风险</p>
+          </div>
+        </div>
+
+        <div class="chat-log" id="chatLog" aria-live="polite"></div>
+        <section class="awareness-card" id="riskAwarenessCard" aria-live="polite"></section>
+
+        <div class="quick-prompts" aria-label="快捷提问">
+          <button class="quick-button" type="button" data-prompt="这类求助可信吗？">这类求助可信吗？</button>
+          <button class="quick-button" type="button" data-prompt="为什么代付有风险？">为什么代付有风险？</button>
+          <button class="quick-button" type="button" data-prompt="我该怎么帮助对方更安全？">我该怎么帮助对方更安全？</button>
+        </div>
+
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text" placeholder="输入你想问AI反诈助手的问题">
+          <button class="primary-button" type="button" data-action="send-chat">发送</button>
+        </div>
+
+        <div class="actions">
+          <button class="primary-button" type="button" data-action="finish-gate2">完成本关判断</button>
+        </div>
+      </section>
+    </article>
+  `);
+
+  initGate2AssistantChat();
+}
+
+function initGate2AssistantChat() {
+  state.chatHistory = [];
+  appendChatMessage("assistant", "你好，我可以帮你分析这类“陌生人求助代付 / 扫码付款”场景的风险。你可以问我这是不是诈骗、有哪些风险点，或者遇到这种情况应该怎么处理。");
+  renderRiskAwarenessCard();
+
+  storyStage.querySelectorAll("[data-prompt]").forEach((button) => {
+    button.addEventListener("click", () => sendAssistantMessage(button.dataset.prompt));
+  });
+
+  bindClick("[data-action='send-chat']", () => {
+    const input = storyStage.querySelector("#chatInput");
+    sendAssistantMessage(input.value);
+    input.value = "";
+  });
+
+  const input = storyStage.querySelector("#chatInput");
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      sendAssistantMessage(input.value);
+      input.value = "";
+    }
+  });
+
+  bindClick("[data-action='finish-gate2']", showGate2Summary);
+}
+
+function showGate2Summary() {
+  state.currentScene = "gate2Summary";
+  state.gate2Outcome = "safe";
+  window.gate2Outcome = state.gate2Outcome;
+  setSceneMeta("Gate 02 Summary", "ending");
+
+  render(`
+    <article class="screen ending-card safe-ending">
+      <h2 class="ending-title">第二关总结：陌生求助不等于直接转账</h2>
+      <p class="ending-copy">面对陌生人的紧急求助，保持善意并不意味着必须直接转账或代付。更稳妥的帮助方式，是引导对方寻求学校内更可靠的官方协助。</p>
+
+      <section class="risk-card summary-card">
+        <p class="risk-title">本关总结</p>
+        <p class="summary-line">你的本关处理倾向：<strong>${state.riskAwareness}</strong></p>
+        <ul class="risk-list">
+          <li>不轻易与陌生人发生资金交易</li>
+          <li>面对紧急求助，优先提供非资金型帮助</li>
+          <li>涉及扫码、转账、代付时，先核实再决定</li>
+        </ul>
+      </section>
+
+      <div class="actions">
+        <button class="primary-button" type="button" data-action="coming-soon">继续下一关（开发中）</button>
+        <button class="choice-button" type="button" data-action="restart">重新开始</button>
+      </div>
+    </article>
+  `);
+
+  bindClick("[data-action='coming-soon']", showComingSoonScene);
+  bindClick("[data-action='restart']", restartStory);
+}
+
+function showComingSoonScene() {
+  state.currentScene = "comingSoon";
+  setSceneMeta("Coming Soon", "ending");
+
+  render(`
+    <article class="screen coming-card">
+      <h2 class="ending-title">第三关开发中</h2>
+      <p class="ending-copy">下一关将围绕校园中常见的二维码 / 小广告引流风险展开。当前版本先完成到这里，你可以重新体验前面的反诈闯关内容。</p>
+
+      <section class="next-card">
+        <p class="next-title">继续下一关（共享单车二维码）</p>
+        <p class="choice-note">第三关开发中，后续可继续接入新的场景图片、分支选择与 AI 分析。</p>
+      </section>
+
+      <div class="actions">
+        <button class="primary-button" type="button" data-action="restart">重新开始</button>
+        <button class="choice-button safe" type="button" data-action="back-summary">返回第二关总结</button>
+      </div>
+    </article>
+  `);
+
+  bindClick("[data-action='restart']", restartStory);
+  bindClick("[data-action='back-summary']", showGate2Summary);
 }
 
 function restartStory() {
