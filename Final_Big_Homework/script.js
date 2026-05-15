@@ -1298,6 +1298,8 @@ function showGate3AIAnalysis() {
 function initGate3AssistantChat() {
   state.chatHistory = [];
   appendChatMessage("assistant", "你好，我可以帮你分析这类校园中出现的可疑二维码或小广告引流风险。你可以问我这类二维码是否可信、为什么有风险，或者遇到这种情况该怎么处理。");
+  appendChatMessage("assistant", "当前场景已切换为“共享单车可疑二维码贴纸”。你可以先不要扫码，优先判断来源是否官方、是否诱导下载或跳转到外部页面。");
+  setAssistantSource("mock");
   renderRiskAwarenessCard();
 
   storyStage.querySelectorAll("[data-prompt]").forEach((button) => {
