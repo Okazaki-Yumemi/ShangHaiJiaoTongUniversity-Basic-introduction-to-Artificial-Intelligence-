@@ -1,1 +1,21 @@
 wk3/数据科学技巧实验/通用版/financial_data.csv
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Local secrets and environment configuration
+.env
+.env.*
+*.env
+*.local
+*.secret
+*.secrets
+*key*.txt
+*secret*.txt
+
+# Local virtual environments
+.venv/
+venv/
+env/
