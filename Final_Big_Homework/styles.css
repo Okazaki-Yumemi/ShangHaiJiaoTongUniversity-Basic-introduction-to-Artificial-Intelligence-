@@ -412,6 +412,47 @@ button {
   text-align: center;
 }
 
+.final-summary-card {
+  width: min(980px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+  border: 1px solid rgba(103, 211, 255, 0.24);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.final-summary-card .ending-title {
+  color: var(--accent);
+}
+
+.profile-card,
+.review-card,
+.ai-note-card {
+  border: 1px solid rgba(103, 211, 255, 0.22);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.profile-card,
+.ai-note-card {
+  margin: 22px 0;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.review-title {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-weight: 900;
+}
+
 .coming-card .ending-title {
   color: var(--accent);
 }
@@ -701,6 +742,10 @@ button {
 
   .progress-bar {
     flex-wrap: wrap;
+  }
+
+  .review-grid {
+    grid-template-columns: 1fr;
   }
 }
 

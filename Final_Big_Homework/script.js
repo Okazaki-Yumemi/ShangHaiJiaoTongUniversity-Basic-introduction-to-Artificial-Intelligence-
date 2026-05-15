@@ -11,6 +11,9 @@ const state = {
   riskReason: null,
   gate2Choice: null,
   gate2Outcome: null,
+  gate3Choice: null,
+  gate3Outcome: null,
+  finalRiskProfile: null,
   assistantSource: null,
   chatHistory: [],
 };
@@ -42,6 +45,9 @@ function showIntro() {
   state.riskReason = null;
   state.gate2Choice = null;
   state.gate2Outcome = null;
+  state.gate3Choice = null;
+  state.gate3Outcome = null;
+  state.finalRiskProfile = null;
   state.assistantSource = null;
   state.chatHistory = [];
   window.firstChoice = null;
@@ -50,6 +56,9 @@ function showIntro() {
   window.riskAwareness = null;
   window.gate2Choice = null;
   window.gate2Outcome = null;
+  window.gate3Choice = null;
+  window.gate3Outcome = null;
+  window.finalRiskProfile = null;
   setSceneMeta("Intro", "intro");
 
   render(`
@@ -409,6 +418,7 @@ async function requestRealAntiFraudReply(userText, scenario) {
         firstChoice: state.firstChoice,
         secondChoice: state.secondChoice,
         gate2Choice: state.gate2Choice,
+        gate3Choice: state.gate3Choice,
         currentRiskAwareness: state.riskAwareness,
       }),
       signal: controller.signal,
@@ -449,6 +459,68 @@ function getMockAntiFraudReply(userText, scenario) {
     text.includes("陌生人") ||
     text.includes("求助") ||
     text.includes("垫");
+  const isGate3Context =
+    scenario === "bike_qr_sticker" ||
+    state.currentScene === "gate3AI" ||
+    text.includes("二维码") ||
+    text.includes("扫码") ||
+    text.includes("贴纸") ||
+    text.includes("小广告") ||
+    text.includes("福利");
+
+  if (
+    isGate3Context &&
+    (
+      text.includes("可信吗") ||
+      text.includes("是不是诈骗") ||
+      text.includes("能不能扫") ||
+      text.includes("看起来像福利是真的吗") ||
+      text.includes("能信吗")
+    )
+  ) {
+    return {
+      reply: "这类二维码不能轻信。它来源不明，没有官方标识，常被用于把人引流到不安全页面或下载入口。不建议扫码，更不要在跳转页面里填写信息、充值或安装 App。",
+      riskAwareness: "警惕型",
+      riskReason: "用户主动询问二维码可信度，说明已经开始核实来源。",
+      source: "mock",
+    };
+  }
+
+  if (
+    isGate3Context &&
+    (
+      text.includes("为什么随便扫码有风险") ||
+      text.includes("为什么扫码有风险") ||
+      text.includes("风险点是什么") ||
+      text.includes("会发生什么") ||
+      text.includes("风险")
+    )
+  ) {
+    return {
+      reply: "随便扫码可能跳转钓鱼网站、诱导下载不明 App，或进一步进入赌博、充值、虚假交友、信息收集等风险链条。即使只是“看看”，也可能把你带进不安全环境。",
+      riskAwareness: "警惕型",
+      riskReason: "用户关注扫码后的风险链条，具备较强的识别意识。",
+      source: "mock",
+    };
+  }
+
+  if (
+    isGate3Context &&
+    (
+      text.includes("我该怎么处理") ||
+      text.includes("遇到这种贴纸怎么办") ||
+      text.includes("需不需要举报") ||
+      text.includes("怎么处理这种贴纸") ||
+      text.includes("怎么办")
+    )
+  ) {
+    return {
+      reply: "最稳妥的做法是不扫、不点、不下载。可以拍照留存并向校园管理人员、共享单车平台或相关服务点反馈；如果已经扫码进入异常页面，应立即退出，不提交信息、不下载文件。",
+      riskAwareness: "警惕型",
+      riskReason: "用户在询问举报与处理方式，体现出主动防范意识。",
+      source: "mock",
+    };
+  }
 
   if (
     isGate2Context &&
@@ -615,6 +687,21 @@ function updateRiskAwareness(userText = "", aiResult = null) {
     reason = "你没有直接付款，而是先咨询 AI 分析风险，具备核实意识。";
   }
 
+  if (state.gate3Choice === "scan_qr") {
+    awareness = "轻信型";
+    reason = "你倾向扫描来路不明的二维码，容易被福利话术和好奇心带入风险页面。";
+  }
+
+  if (state.gate3Choice === "ignore_leave") {
+    awareness = "警惕型";
+    reason = "你选择不扫描来源不明的二维码，直接减少了进入风险链条的机会。";
+  }
+
+  if (state.gate3Choice === "consult_ai_or_report") {
+    awareness = "警惕型";
+    reason = "你选择先咨询 AI 或拍照举报，说明具备核实与反馈意识。";
+  }
+
   if (
     text.includes("可信吗") ||
     text.includes("是不是诈骗") ||
@@ -624,7 +711,9 @@ function updateRiskAwareness(userText = "", aiResult = null) {
     text.includes("哪里可疑") ||
     text.includes("怎么处理更安全") ||
     text.includes("如何帮助对方") ||
-    text.includes("怎么帮助")
+    text.includes("怎么帮助") ||
+    text.includes("需不需要举报") ||
+    text.includes("怎么处理这种贴纸")
   ) {
     awareness = "警惕型";
     reason = "你的提问集中在核实来源和识别风险点，说明警惕性较强。";
@@ -646,7 +735,9 @@ function updateRiskAwareness(userText = "", aiResult = null) {
     text.includes("先点了再说") ||
     text.includes("应该没问题吧") ||
     text.includes("直接扫") ||
-    text.includes("直接付")
+    text.includes("直接付") ||
+    text.includes("扫了看看") ||
+    text.includes("扫码看看")
   ) {
     awareness = "轻信型";
     reason = "你的表达显示出较强的冲动操作倾向，需要先停下来核实。";
@@ -838,7 +929,7 @@ function showGate2RiskResult() {
 
       <div class="actions">
         <button class="choice-button safe" type="button" data-action="gate2-ai">咨询AI反诈助手</button>
-        <button class="primary-button" type="button" data-action="coming-soon">继续下一关（开发中）</button>
+        <button class="primary-button" type="button" data-action="next-gate">继续下一关</button>
         <button class="choice-button" type="button" data-action="restart">重新开始</button>
       </div>
     </article>
@@ -846,7 +937,7 @@ function showGate2RiskResult() {
 
   renderRiskAwarenessCard();
   bindClick("[data-action='gate2-ai']", showGate2AIAnalysis);
-  bindClick("[data-action='coming-soon']", showComingSoonScene);
+  bindClick("[data-action='next-gate']", showScene8);
   bindClick("[data-action='restart']", restartStory);
 }
 
@@ -873,7 +964,7 @@ function showGate2SafeResult() {
 
       <div class="actions">
         <button class="choice-button safe" type="button" data-action="gate2-ai">咨询AI反诈助手</button>
-        <button class="primary-button" type="button" data-action="coming-soon">继续下一关（开发中）</button>
+        <button class="primary-button" type="button" data-action="next-gate">继续下一关</button>
         <button class="choice-button" type="button" data-action="restart">重新开始</button>
       </div>
     </article>
@@ -881,7 +972,7 @@ function showGate2SafeResult() {
 
   renderRiskAwarenessCard();
   bindClick("[data-action='gate2-ai']", showGate2AIAnalysis);
-  bindClick("[data-action='coming-soon']", showComingSoonScene);
+  bindClick("[data-action='next-gate']", showScene8);
   bindClick("[data-action='restart']", restartStory);
 }
 
@@ -984,14 +1075,422 @@ function showGate2Summary() {
       </section>
 
       <div class="actions">
-        <button class="primary-button" type="button" data-action="coming-soon">继续下一关（开发中）</button>
+        <button class="primary-button" type="button" data-action="next-gate">继续下一关</button>
         <button class="choice-button" type="button" data-action="restart">重新开始</button>
       </div>
     </article>
   `);
 
-  bindClick("[data-action='coming-soon']", showComingSoonScene);
+  bindClick("[data-action='next-gate']", showScene8);
   bindClick("[data-action='restart']", restartStory);
+}
+
+function showScene8() {
+  state.currentScene = "scene8";
+  setSceneMeta("Scene 08", "campus");
+
+  render(`
+    <article class="screen scene-layout">
+      <div class="visual-panel">
+        <img class="scene-image" src="assets/V7-bike-qr-found.png" alt="共享单车车把附近出现可疑二维码贴纸">
+        <div class="image-vignette"></div>
+      </div>
+
+      <section class="narrative-panel">
+        <p class="scene-kicker">Scene 08 · 可疑二维码贴纸</p>
+        <p class="story-text">你准备骑共享单车离开时，注意到车把附近贴着一张小广告。上面有一个二维码，看起来像是在宣传某种“扫码福利”或“资源入口”。</p>
+        <div class="actions">
+          <button class="primary-button" type="button" data-action="continue-scene9">继续查看</button>
+        </div>
+      </section>
+    </article>
+  `);
+
+  bindClick("[data-action='continue-scene9']", showScene9);
+}
+
+function showScene9() {
+  state.currentScene = "scene9";
+  setSceneMeta("Scene 09", "campus");
+
+  render(`
+    <article class="screen scene-layout">
+      <div class="visual-panel">
+        <img class="scene-image" src="assets/V8-bike-qr-scan-hesitation.png" alt="主角拿起手机犹豫是否扫描共享单车上的可疑二维码">
+        <div class="image-vignette"></div>
+      </div>
+
+      <section class="narrative-panel">
+        <p class="scene-kicker">Scene 09 · 要不要扫码？</p>
+        <p class="story-text">你拿起手机，对着这张二维码贴纸看了看。它看起来像是在吸引人扫码进入某个页面，但来源不明，也没有任何官方说明。</p>
+
+        <section class="situation-card">
+          <p class="situation-title">这类贴纸常见特点</p>
+          <ul class="risk-list">
+            <li>用“扫码领取福利”吸引注意</li>
+            <li>来源不明，没有官方标识</li>
+            <li>可能引导到外部网站或下载页面</li>
+            <li>后续可能涉及充值、诱导注册、虚假交友或恶意 App</li>
+          </ul>
+        </section>
+
+        <div class="actions">
+          <button class="choice-button risky" type="button" data-gate3-choice="scan_qr">好奇扫码看看</button>
+          <button class="choice-button safe" type="button" data-gate3-choice="ignore_leave">直接无视并离开</button>
+          <button class="choice-button safe" type="button" data-gate3-choice="consult_ai_or_report">咨询AI反诈助手 / 拍照举报</button>
+        </div>
+      </section>
+    </article>
+  `);
+
+  storyStage.querySelectorAll("[data-gate3-choice]").forEach((button) => {
+    button.addEventListener("click", () => handleGate3Choice(button.dataset.gate3Choice));
+  });
+}
+
+function handleGate3Choice(choice) {
+  state.gate3Choice = choice;
+  window.gate3Choice = choice;
+
+  if (choice === "scan_qr") {
+    state.gate3Outcome = "risk";
+    window.gate3Outcome = state.gate3Outcome;
+    updateRiskAwareness("好奇扫码看看");
+    showGate3RiskResult();
+    return;
+  }
+
+  if (choice === "ignore_leave") {
+    state.gate3Outcome = "safe";
+    window.gate3Outcome = state.gate3Outcome;
+    updateRiskAwareness("直接无视并离开");
+    showGate3SafeResult();
+    return;
+  }
+
+  state.gate3Outcome = "ai";
+  window.gate3Outcome = state.gate3Outcome;
+  updateRiskAwareness("咨询AI反诈助手拍照举报");
+  showGate3AIAnalysis();
+}
+
+function showGate3RiskResult() {
+  state.currentScene = "gate3Risk";
+  setSceneMeta("Gate 03 Risk", "ending");
+
+  render(`
+    <article class="screen ending-card">
+      <h2 class="ending-title">第三关结果：高风险扫码行为</h2>
+      <p class="ending-copy">你选择尝试扫描这个来路不明的二维码。这类贴纸常被用于引流到不安全网站、诱导下载恶意 App，或进一步进入赌博、虚假交友、充值陷阱等骗局。</p>
+
+      <section class="risk-card">
+        <p class="risk-title">风险提示</p>
+        <ul class="risk-list">
+          <li>不明二维码不要随意扫码</li>
+          <li>这类小广告常利用好奇心和擦边内容吸引点击</li>
+          <li>后续可能引导下载不明 App、访问钓鱼页面、填写个人信息或充值</li>
+          <li>即使表面只是“看看”，也可能把你带入后续风险链条</li>
+        </ul>
+      </section>
+
+      <section class="awareness-card" id="riskAwarenessCard"></section>
+
+      <div class="actions">
+        <button class="choice-button safe" type="button" data-action="gate3-ai">咨询AI反诈助手</button>
+        <button class="primary-button" type="button" data-action="gate3-summary">完成本关总结</button>
+        <button class="choice-button" type="button" data-action="restart">重新开始</button>
+      </div>
+    </article>
+  `);
+
+  renderRiskAwarenessCard();
+  bindClick("[data-action='gate3-ai']", showGate3AIAnalysis);
+  bindClick("[data-action='gate3-summary']", showGate3Summary);
+  bindClick("[data-action='restart']", restartStory);
+}
+
+function showGate3SafeResult() {
+  state.currentScene = "gate3Safe";
+  setSceneMeta("Gate 03 Safe", "ending");
+
+  render(`
+    <article class="screen ending-card safe-ending">
+      <h2 class="ending-title">第三关结果：较安全的处理方式</h2>
+      <p class="ending-copy">你没有因为好奇去扫描来路不明的二维码，而是选择直接离开。这是一种更稳妥的做法，因为这类引流贴纸往往并不可信。</p>
+
+      <section class="risk-card safe-card">
+        <p class="risk-title">安全处理卡片</p>
+        <ul class="risk-list">
+          <li>面对来路不明的二维码，最简单有效的做法就是不扫</li>
+          <li>不要因为“免费资源”“扫码福利”之类的说法放松警惕</li>
+          <li>如果贴纸出现在校园公共区域，也可考虑向相关管理人员反映或举报</li>
+          <li>远离不必要的点击，就是减少风险的第一步</li>
+        </ul>
+      </section>
+
+      <section class="awareness-card" id="riskAwarenessCard"></section>
+
+      <div class="actions">
+        <button class="choice-button safe" type="button" data-action="gate3-ai">咨询AI反诈助手</button>
+        <button class="primary-button" type="button" data-action="gate3-summary">完成本关总结</button>
+        <button class="choice-button" type="button" data-action="restart">重新开始</button>
+      </div>
+    </article>
+  `);
+
+  renderRiskAwarenessCard();
+  bindClick("[data-action='gate3-ai']", showGate3AIAnalysis);
+  bindClick("[data-action='gate3-summary']", showGate3Summary);
+  bindClick("[data-action='restart']", restartStory);
+}
+
+function showGate3AIAnalysis() {
+  state.currentScene = "gate3AI";
+  setSceneMeta("Scene 10", "assistant");
+  updateRiskAwareness("可疑二维码贴纸");
+
+  render(`
+    <article class="screen assistant-layout">
+      <div class="visual-panel">
+        <img class="scene-image" src="assets/V8-bike-qr-scan-hesitation.png" alt="主角犹豫是否扫描共享单车上的可疑二维码">
+        <div class="image-vignette"></div>
+      </div>
+
+      <section class="chat-card">
+        <div>
+          <p class="scene-kicker">Scene 10 · AI分析：可疑二维码贴纸</p>
+          <p class="story-text">你决定先借助 AI 反诈助手分析这张可疑二维码贴纸，看看是否存在引流或诈骗风险。</p>
+        </div>
+
+        <div class="assistant-head">
+          <div class="assistant-avatar" aria-hidden="true">AI</div>
+          <div>
+            <p class="assistant-title">AI反诈助手</p>
+            <p class="assistant-subtitle">为你分析二维码、小广告与引流风险</p>
+          </div>
+          <span class="assistant-source-badge" id="assistantSourceBadge">离线演示可用</span>
+        </div>
+
+        <div class="chat-log" id="chatLog" aria-live="polite"></div>
+        <section class="awareness-card" id="riskAwarenessCard" aria-live="polite"></section>
+
+        <div class="quick-prompts" aria-label="快捷提问">
+          <button class="quick-button" type="button" data-prompt="这类二维码可信吗？">这类二维码可信吗？</button>
+          <button class="quick-button" type="button" data-prompt="为什么随便扫码有风险？">为什么随便扫码有风险？</button>
+          <button class="quick-button" type="button" data-prompt="我应该怎么处理这种贴纸？">我应该怎么处理这种贴纸？</button>
+        </div>
+
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text" placeholder="输入你想问AI反诈助手的问题">
+          <button class="primary-button" type="button" data-action="send-chat">发送</button>
+        </div>
+
+        <div class="actions">
+          <button class="primary-button" type="button" data-action="finish-gate3">完成本关判断</button>
+        </div>
+      </section>
+    </article>
+  `);
+
+  initGate3AssistantChat();
+}
+
+function initGate3AssistantChat() {
+  state.chatHistory = [];
+  appendChatMessage("assistant", "你好，我可以帮你分析这类校园中出现的可疑二维码或小广告引流风险。你可以问我这类二维码是否可信、为什么有风险，或者遇到这种情况该怎么处理。");
+  renderRiskAwarenessCard();
+
+  storyStage.querySelectorAll("[data-prompt]").forEach((button) => {
+    button.addEventListener("click", () => sendAssistantMessage(button.dataset.prompt, "bike_qr_sticker"));
+  });
+
+  bindClick("[data-action='send-chat']", () => {
+    const input = storyStage.querySelector("#chatInput");
+    sendAssistantMessage(input.value, "bike_qr_sticker");
+    input.value = "";
+  });
+
+  const input = storyStage.querySelector("#chatInput");
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      sendAssistantMessage(input.value, "bike_qr_sticker");
+      input.value = "";
+    }
+  });
+
+  bindClick("[data-action='finish-gate3']", showGate3Summary);
+}
+
+function showGate3Summary() {
+  state.currentScene = "gate3Summary";
+  if (!state.gate3Outcome || state.gate3Outcome === "ai") {
+    state.gate3Outcome = "safe";
+    window.gate3Outcome = state.gate3Outcome;
+  }
+  setSceneMeta("Gate 03 Summary", "ending");
+
+  render(`
+    <article class="screen ending-card safe-ending">
+      <h2 class="ending-title">第三关总结：可疑二维码，不扫为先</h2>
+      <p class="ending-copy">面对校园中来路不明的二维码、小广告贴纸或所谓“扫码福利”，最稳妥的处理方式是：不扫、不点、不下载。如果怀疑存在引流风险，还可以拍照留存并反馈给相关管理人员。</p>
+
+      <section class="risk-card summary-card">
+        <p class="risk-title">本关总结</p>
+        <p class="summary-line">你的本关处理倾向：<strong>${state.riskAwareness}</strong></p>
+        <ul class="risk-list">
+          <li>不轻信来路不明的二维码和小广告</li>
+          <li>不因为好奇而进入不安全页面</li>
+          <li>必要时拍照留存并举报</li>
+        </ul>
+      </section>
+
+      <div class="actions">
+        <button class="primary-button" type="button" data-action="final-summary">查看最终总评</button>
+        <button class="choice-button" type="button" data-action="restart">重新开始</button>
+      </div>
+    </article>
+  `);
+
+  bindClick("[data-action='final-summary']", showFinalSummary);
+  bindClick("[data-action='restart']", restartStory);
+}
+
+function showFinalSummary() {
+  state.currentScene = "finalSummary";
+  const profile = computeFinalRiskProfile();
+  state.finalRiskProfile = profile.label;
+  window.finalRiskProfile = profile.label;
+  setSceneMeta("Final", "ending");
+
+  const gateCards = getGateReviewCards();
+
+  render(`
+    <article class="screen final-summary-card">
+      <p class="scene-kicker">三关互动反诈体验总结</p>
+      <h2 class="ending-title">你的反诈画像</h2>
+      <p class="ending-copy">你已经完成了本次校园反诈互动体验。下面是根据你在三关中的选择与 AI 交互，生成的整体反诈画像与总结建议。</p>
+
+      <section class="profile-card">
+        <p class="risk-title">总体风险识别倾向</p>
+        <div class="awareness-result ${getAwarenessClass(profile.label)}">${profile.label}</div>
+        <p class="awareness-reason">判定依据：${profile.reason}</p>
+      </section>
+
+      <section class="review-grid">
+        ${gateCards.map((card) => `
+          <div class="review-card">
+            <p class="review-title">${card.title}</p>
+            <p class="summary-line">关键选择：<strong>${card.choice}</strong></p>
+            <p class="awareness-reason">${card.comment}</p>
+          </div>
+        `).join("")}
+      </section>
+
+      <section class="risk-card summary-card">
+        <p class="risk-title">总结建议</p>
+        <ul class="risk-list">
+          <li>遇到紧迫通知先核实来源</li>
+          <li>陌生人求助涉及金钱时优先提供非资金帮助</li>
+          <li>来路不明二维码不扫、不点、不下载</li>
+          <li>涉及个人信息、银行卡、验证码时格外警惕</li>
+        </ul>
+      </section>
+
+      <section class="ai-note-card">
+        <p class="risk-title">AI 功能说明</p>
+        <p class="choice-note">本项目使用 AI 反诈助手进行场景分析，并结合剧情选择与提问内容生成风险意识分类。当前支持实时 AI 分析与离线演示模式。</p>
+      </section>
+
+      <div class="actions">
+        <button class="primary-button" type="button" data-action="restart">重新开始</button>
+        <button class="choice-button safe" type="button" data-action="back-gate3">返回第三关总结</button>
+      </div>
+    </article>
+  `);
+
+  bindClick("[data-action='restart']", restartStory);
+  bindClick("[data-action='back-gate3']", showGate3Summary);
+}
+
+function computeFinalRiskProfile() {
+  let score = 0;
+
+  if (state.firstChoice === "verify_first") score += 2;
+  if (state.firstChoice === "click_link") score -= 1;
+  if (state.secondChoice === "consult_ai") score += 1;
+  if (state.secondChoice === "submit_info") score -= 2;
+
+  if (state.gate2Choice === "seek_official_help") score += 2;
+  if (state.gate2Choice === "consult_ai") score += 1;
+  if (state.gate2Choice === "pay_directly") score -= 2;
+
+  if (state.gate3Choice === "ignore_leave") score += 2;
+  if (state.gate3Choice === "consult_ai_or_report") score += 2;
+  if (state.gate3Choice === "scan_qr") score -= 2;
+
+  if (score >= 4) {
+    return {
+      label: "警惕型",
+      reason: "你多次选择核实、官方渠道或主动规避风险，整体防骗意识较强。",
+    };
+  }
+
+  if (score <= -2) {
+    return {
+      label: "轻信型",
+      reason: "你出现了多次直接冒险操作，容易被紧迫话术、同情心或好奇心影响。",
+    };
+  }
+
+  return {
+    label: "犹豫型",
+    reason: "你能意识到部分风险，但在诱导话术或好奇心面前仍存在摇摆空间。",
+  };
+}
+
+function getGateReviewCards() {
+  const firstChoiceMap = {
+    click_link: "点击陌生链接",
+    verify_first: "先核实消息真伪",
+  };
+  const secondChoiceMap = {
+    submit_info: "继续填写敏感信息",
+    consult_ai: "咨询 AI 反诈助手",
+  };
+  const gate2ChoiceMap = {
+    pay_directly: "直接扫码代付",
+    seek_official_help: "引导寻求官方帮助",
+    consult_ai: "咨询 AI 反诈助手",
+  };
+  const gate3ChoiceMap = {
+    scan_qr: "好奇扫码看看",
+    ignore_leave: "直接无视并离开",
+    consult_ai_or_report: "咨询 AI / 拍照举报",
+  };
+
+  return [
+    {
+      title: "第一关：奖学金短信",
+      choice: secondChoiceMap[state.secondChoice] || firstChoiceMap[state.firstChoice] || "未记录",
+      comment: state.secondChoice === "submit_info"
+        ? "这一关暴露出对限时通知和陌生链接的防范不足。"
+        : "你最终选择核实来源，这是处理奖学金类通知的关键。",
+    },
+    {
+      title: "第二关：路边求助代付",
+      choice: gate2ChoiceMap[state.gate2Choice] || "未记录",
+      comment: state.gate2Choice === "pay_directly"
+        ? "涉及陌生人资金交易时，直接付款会放大风险。"
+        : "你倾向于非资金型帮助或先核实，处理方式更稳妥。",
+    },
+    {
+      title: "第三关：共享单车二维码",
+      choice: gate3ChoiceMap[state.gate3Choice] || "未记录",
+      comment: state.gate3Choice === "scan_qr"
+        ? "不明二维码可能带来引流、下载和信息收集风险。"
+        : "你没有轻易进入不明二维码链路，风险控制较好。",
+    },
+  ];
 }
 
 function showComingSoonScene() {

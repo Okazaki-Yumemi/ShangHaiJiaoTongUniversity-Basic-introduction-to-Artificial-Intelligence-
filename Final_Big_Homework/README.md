@@ -1,6 +1,6 @@
 # 《别点那个链接！》AIGC 反诈互动网页
 
-这是一个原生 HTML / CSS / JavaScript 实现的大学生日常反诈互动剧情网页，当前包含“奖学金补录诈骗短信”和“校园路边陌生人求助代付”两个关卡。
+这是一个原生 HTML / CSS / JavaScript 实现的大学生日常反诈互动剧情网页，当前包含“奖学金补录诈骗短信”“校园路边陌生人求助代付”“共享单车可疑二维码贴纸”三个关卡。
 
 ## 静态演示模式
 
@@ -63,3 +63,9 @@ POST http://127.0.0.1:5000/api/anti-fraud-chat
 ```
 
 `riskAwareness` 只允许为 `警惕型`、`犹豫型`、`轻信型`。
+
+当前支持的 `scenario`：
+
+- `scholarship_sms`
+- `campus_payment_help`
+- `bike_qr_sticker`

@@ -44,6 +44,11 @@ def build_system_prompt() -> str:
         "陌生求助不一定全是诈骗，但涉及金钱交易应警惕；小额代付会利用同情心；"
         "对方身份难核实；更安全方式是带去保卫处、服务台、值班点或找老师；"
         "如果对方拒绝官方帮助、只坚持要钱，应提高警惕。\n\n"
+        "场景 bike_qr_sticker 背景：用户在校园共享单车区域发现车把附近贴着可疑二维码"
+        "或小广告，声称扫码福利、资源入口等。回答时关注：来源不明、没有官方标识；"
+        "可能引流到不安全页面、诱导下载不明 App、进入赌博/充值/虚假交友/信息收集链条；"
+        "最稳妥做法是不扫、不点、不下载，可拍照留存并向校园管理人员或平台反馈；"
+        "如果已经扫码进入异常页面，应立即退出，不提交信息、不下载文件。\n\n"
         "你最终必须只输出 JSON，不要输出 Markdown，不要输出额外解释。"
         "JSON 字段固定为：reply、riskAwareness、riskReason。"
         "reply 用简洁中文，建议80到180字；riskReason 用一句中文，建议25到60字。"
@@ -58,6 +63,7 @@ def build_user_prompt(data: dict[str, Any]) -> str:
             "firstChoice": data.get("firstChoice"),
             "secondChoice": data.get("secondChoice"),
             "gate2Choice": data.get("gate2Choice"),
+            "gate3Choice": data.get("gate3Choice"),
             "currentRiskAwareness": data.get("currentRiskAwareness"),
             "outputFormat": {
                 "reply": "中文反诈回复",
@@ -165,7 +171,7 @@ def anti_fraud_chat():
     if not isinstance(user_text, str) or not user_text.strip():
         return jsonify({"error": "userText is required"}), 400
 
-    if scenario not in {"scholarship_sms", "campus_payment_help"}:
+    if scenario not in {"scholarship_sms", "campus_payment_help", "bike_qr_sticker"}:
         return jsonify({"error": "scenario is invalid"}), 400
 
     try:
