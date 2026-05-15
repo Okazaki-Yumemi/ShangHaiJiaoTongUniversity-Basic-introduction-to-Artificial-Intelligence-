@@ -240,6 +240,7 @@ def normalize_profile_result(result: dict[str, Any]) -> dict[str, Any] | None:
         "overallProfile": overall_profile,
         "overallReason": overall_reason.strip(),
         "dimensions": dimensions,
+        "source": "llm",
     }
 
 

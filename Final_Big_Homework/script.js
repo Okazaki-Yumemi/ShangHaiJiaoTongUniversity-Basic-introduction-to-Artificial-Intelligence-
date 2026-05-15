@@ -1423,7 +1423,7 @@ function showFinalSummary() {
 async function loadFinalProfileReport(finalRuleProfile) {
   try {
     const report = await requestRealFinalProfile(finalRuleProfile);
-    renderFinalProfileReport({ ...report, source: "llm" });
+    renderFinalProfileReport(report);
   } catch (error) {
     console.warn("Final profile fallback:", error);
     renderFinalProfileReport(getMockFinalProfile(finalRuleProfile));
@@ -1463,7 +1463,10 @@ async function requestRealFinalProfile(finalRuleProfile) {
 
     const data = await response.json();
     validateFinalProfileReport(data);
-    return data;
+    return {
+      ...data,
+      source: data.source || "llm",
+    };
   } finally {
     window.clearTimeout(timeoutId);
   }
@@ -1473,9 +1476,14 @@ function validateFinalProfileReport(report) {
   const profileTypes = ["谨慎核验型", "情境摇摆型", "高风险轻信型"];
   const dimensionNames = ["信息来源核验意识", "资金交易边界意识", "未知入口防范意识", "紧迫话术抗干扰能力"];
   const levels = ["较强", "一般", "待提升"];
+  const sources = ["llm", "mock", undefined];
 
   if (!profileTypes.includes(report.overallProfile) || typeof report.overallReason !== "string") {
     throw new Error("Invalid profile summary");
+  }
+
+  if (!sources.includes(report.source)) {
+    throw new Error("Invalid profile source");
   }
 
   if (!Array.isArray(report.dimensions) || report.dimensions.length !== 4) {
