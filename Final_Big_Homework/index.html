@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>别点那个链接！</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="top-bar">
+      <span class="project-pill">互动反诈短剧 / AIGC Project</span>
+      <span class="scene-chip" id="sceneChip">Intro</span>
+    </header>
+
+    <section class="story-stage" id="storyStage" aria-live="polite"></section>
+
+    <footer class="progress-bar" aria-label="剧情进度">
+      <span class="progress-step is-active" data-step="intro">01 开场</span>
+      <span class="progress-arrow">→</span>
+      <span class="progress-step" data-step="message">02 短信</span>
+      <span class="progress-arrow">→</span>
+      <span class="progress-step" data-step="choice">03 选择</span>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
