@@ -13,6 +13,14 @@ except ImportError:
 
 
 ALLOWED_RISK_AWARENESS = {"警惕型", "犹豫型", "轻信型"}
+ALLOWED_PROFILE_TYPES = {"谨慎核验型", "情境摇摆型", "高风险轻信型"}
+ALLOWED_DIMENSION_LEVELS = {"较强", "一般", "待提升"}
+PROFILE_DIMENSIONS = [
+    "信息来源核验意识",
+    "资金交易边界意识",
+    "未知入口防范意识",
+    "紧迫话术抗干扰能力",
+]
 DEFAULT_TIMEOUT_SECONDS = 20
 
 app = Flask(__name__)
@@ -75,6 +83,50 @@ def build_user_prompt(data: dict[str, Any]) -> str:
     )
 
 
+def build_profile_system_prompt() -> str:
+    return (
+        "你是一个反诈能力分类系统，需要根据用户在三关互动剧情中的行为轨迹，"
+        "生成结构化的多维反诈画像分类报告。不要泛泛夸奖，必须结合具体选择。\n\n"
+        "综合画像类型只能是：谨慎核验型、情境摇摆型、高风险轻信型。\n"
+        "四个维度必须固定且按顺序返回：信息来源核验意识、资金交易边界意识、"
+        "未知入口防范意识、紧迫话术抗干扰能力。\n"
+        "每个维度的 level 只能是：较强、一般、待提升。"
+        "分数与等级必须大致匹配：较强=75到100，一般=45到74，待提升=0到44。\n"
+        "overallReason 控制在50到120字；每个维度 reason 控制在20到60字。\n\n"
+        "你最终必须只输出 JSON，不要输出 Markdown，不要输出额外解释。"
+        "JSON 字段固定为：overallProfile、overallReason、dimensions。"
+    )
+
+
+def build_profile_user_prompt(data: dict[str, Any]) -> str:
+    return json.dumps(
+        {
+            "firstChoice": data.get("firstChoice"),
+            "secondChoice": data.get("secondChoice"),
+            "gate2Choice": data.get("gate2Choice"),
+            "gate2Outcome": data.get("gate2Outcome"),
+            "gate3Choice": data.get("gate3Choice"),
+            "gate3Outcome": data.get("gate3Outcome"),
+            "finalRuleProfile": data.get("finalRuleProfile"),
+            "scenarioRiskAwareness": data.get("scenarioRiskAwareness") or {},
+            "classificationDimensions": PROFILE_DIMENSIONS,
+            "outputFormat": {
+                "overallProfile": "谨慎核验型 / 情境摇摆型 / 高风险轻信型",
+                "overallReason": "整体分类依据",
+                "dimensions": [
+                    {
+                        "name": "信息来源核验意识",
+                        "level": "较强 / 一般 / 待提升",
+                        "score": 88,
+                        "reason": "分项依据",
+                    }
+                ],
+            },
+        },
+        ensure_ascii=False,
+    )
+
+
 def extract_json_object(text: str) -> dict[str, Any] | None:
     cleaned = text.strip()
     cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
@@ -114,6 +166,80 @@ def normalize_model_result(result: dict[str, Any]) -> dict[str, str] | None:
         "reply": reply.strip(),
         "riskAwareness": risk_awareness,
         "riskReason": risk_reason.strip(),
+    }
+
+
+def level_for_score(score: int) -> str:
+    if score >= 75:
+        return "较强"
+    if score >= 45:
+        return "一般"
+    return "待提升"
+
+
+def score_for_level(level: str) -> int:
+    if level == "较强":
+        return 80
+    if level == "待提升":
+        return 40
+    return 60
+
+
+def normalize_profile_result(result: dict[str, Any]) -> dict[str, Any] | None:
+    overall_profile = result.get("overallProfile")
+    if overall_profile not in ALLOWED_PROFILE_TYPES:
+        overall_profile = "情境摇摆型"
+
+    overall_reason = result.get("overallReason")
+    if not isinstance(overall_reason, str) or not overall_reason.strip():
+        overall_reason = "系统根据三关选择轨迹给出保守分类，建议继续强化核实来源与风险边界意识。"
+
+    raw_dimensions = result.get("dimensions")
+    if not isinstance(raw_dimensions, list):
+        return None
+
+    dimensions_by_name = {
+        item.get("name"): item
+        for item in raw_dimensions
+        if isinstance(item, dict)
+    }
+
+    dimensions = []
+    for name in PROFILE_DIMENSIONS:
+        item = dimensions_by_name.get(name, {})
+        level = item.get("level")
+        score = item.get("score")
+        reason = item.get("reason")
+
+        if not isinstance(score, int):
+            score = score_for_level(level if level in ALLOWED_DIMENSION_LEVELS else "一般")
+        score = max(0, min(100, score))
+
+        expected_level = level_for_score(score)
+        if level not in ALLOWED_DIMENSION_LEVELS:
+            level = expected_level
+
+        if level == "较强" and score < 75:
+            score = 75
+        if level == "一般" and not 45 <= score <= 74:
+            score = 60
+        if level == "待提升" and score > 44:
+            score = 40
+
+        if not isinstance(reason, str) or not reason.strip():
+            reason = "该维度依据用户三关选择轨迹生成，建议继续保持核实习惯。"
+
+        dimensions.append({
+            "name": name,
+            "level": level,
+            "score": score,
+            "reason": reason.strip(),
+        })
+
+    return {
+        "overallProfile": overall_profile,
+        "overallReason": overall_reason.strip(),
+        "dimensions": dimensions,
     }
 
 
@@ -157,6 +283,46 @@ def call_openai_compatible_api(data: dict[str, Any]) -> dict[str, str]:
     return normalized
 
 
+def call_openai_compatible_profile_api(data: dict[str, Any]) -> dict[str, Any]:
+    base_url = (os.getenv("LLM_BASE_URL") or "").rstrip("/")
+    api_key = os.getenv("LLM_API_KEY") or ""
+    model = os.getenv("LLM_MODEL") or ""
+
+    if not base_url or not model:
+        raise RuntimeError("LLM_BASE_URL and LLM_MODEL are required for real AI mode.")
+
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    response = requests.post(
+        f"{base_url}/chat/completions",
+        headers=headers,
+        json={
+            "model": model,
+            "messages": [
+                {"role": "system", "content": build_profile_system_prompt()},
+                {"role": "user", "content": build_profile_user_prompt(data)},
+            ],
+            "temperature": 0.1,
+        },
+        timeout=DEFAULT_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+    content = payload["choices"][0]["message"]["content"]
+    parsed = extract_json_object(content)
+    if parsed is None:
+        raise ValueError("LLM profile response is not valid JSON.")
+
+    normalized = normalize_profile_result(parsed)
+    if normalized is None:
+        raise ValueError("LLM profile response JSON is missing required fields.")
+
+    return normalized
+
+
 @app.get("/api/health")
 def health():
     return jsonify({"ok": True})
@@ -180,6 +346,20 @@ def anti_fraud_chat():
         return jsonify({"error": "LLM request failed", "detail": str(exc)}), 502
     except (KeyError, ValueError, RuntimeError) as exc:
         return jsonify({"error": "LLM response failed", "detail": str(exc)}), 502
+    except Exception as exc:
+        return jsonify({"error": "Unexpected server error", "detail": str(exc)}), 500
+
+
+@app.post("/api/anti-fraud-profile")
+def anti_fraud_profile():
+    data = request.get_json(silent=True) or {}
+
+    try:
+        return jsonify(call_openai_compatible_profile_api(data))
+    except requests.RequestException as exc:
+        return jsonify({"error": "LLM profile request failed", "detail": str(exc)}), 502
+    except (KeyError, ValueError, RuntimeError) as exc:
+        return jsonify({"error": "LLM profile response failed", "detail": str(exc)}), 502
     except Exception as exc:
         return jsonify({"error": "Unexpected server error", "detail": str(exc)}), 500
 

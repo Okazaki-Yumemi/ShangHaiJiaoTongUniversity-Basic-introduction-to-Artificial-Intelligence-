@@ -1378,6 +1378,11 @@ function showFinalSummary() {
         <p class="awareness-reason">判定依据：${profile.reason}</p>
       </section>
 
+      <section class="multi-profile-section" id="multiProfileSection" aria-live="polite">
+        <p class="risk-title">AI 多维反诈画像分类</p>
+        <div class="profile-loading">AI 正在生成多维反诈画像……</div>
+      </section>
+
       <section class="review-grid">
         ${gateCards.map((card) => `
           <div class="review-card">
@@ -1412,6 +1417,237 @@ function showFinalSummary() {
 
   bindClick("[data-action='restart']", restartStory);
   bindClick("[data-action='back-gate3']", showGate3Summary);
+  loadFinalProfileReport(profile.label);
+}
+
+async function loadFinalProfileReport(finalRuleProfile) {
+  try {
+    const report = await requestRealFinalProfile(finalRuleProfile);
+    renderFinalProfileReport({ ...report, source: "llm" });
+  } catch (error) {
+    console.warn("Final profile fallback:", error);
+    renderFinalProfileReport(getMockFinalProfile(finalRuleProfile));
+  }
+}
+
+async function requestRealFinalProfile(finalRuleProfile) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+
+  try {
+    const response = await fetch("http://127.0.0.1:5000/api/anti-fraud-profile", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        firstChoice: state.firstChoice,
+        secondChoice: state.secondChoice,
+        gate2Choice: state.gate2Choice,
+        gate2Outcome: state.gate2Outcome,
+        gate3Choice: state.gate3Choice,
+        gate3Outcome: state.gate3Outcome,
+        finalRuleProfile,
+        scenarioRiskAwareness: {
+          gate1: state.secondChoice === "submit_info" ? "轻信型" : state.firstChoice === "verify_first" ? "警惕型" : "犹豫型",
+          gate2: state.gate2Choice === "pay_directly" ? "轻信型" : state.gate2Choice === "seek_official_help" ? "警惕型" : "犹豫型",
+          gate3: state.gate3Choice === "scan_qr" ? "轻信型" : state.gate3Choice === "ignore_leave" ? "警惕型" : "犹豫型",
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Profile backend returned ${response.status}`);
+    }
+
+    const data = await response.json();
+    validateFinalProfileReport(data);
+    return data;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function validateFinalProfileReport(report) {
+  const profileTypes = ["谨慎核验型", "情境摇摆型", "高风险轻信型"];
+  const dimensionNames = ["信息来源核验意识", "资金交易边界意识", "未知入口防范意识", "紧迫话术抗干扰能力"];
+  const levels = ["较强", "一般", "待提升"];
+
+  if (!profileTypes.includes(report.overallProfile) || typeof report.overallReason !== "string") {
+    throw new Error("Invalid profile summary");
+  }
+
+  if (!Array.isArray(report.dimensions) || report.dimensions.length !== 4) {
+    throw new Error("Invalid profile dimensions");
+  }
+
+  report.dimensions.forEach((dimension, index) => {
+    if (
+      dimension.name !== dimensionNames[index] ||
+      !levels.includes(dimension.level) ||
+      !Number.isInteger(dimension.score) ||
+      dimension.score < 0 ||
+      dimension.score > 100 ||
+      typeof dimension.reason !== "string"
+    ) {
+      throw new Error("Invalid profile dimension item");
+    }
+  });
+}
+
+function getMockFinalProfile(finalRuleProfile) {
+  const sourceAwareness = scoreDimension(
+    state.firstChoice === "verify_first",
+    state.firstChoice === "click_link" || state.secondChoice === "submit_info"
+  );
+  const moneyBoundary = scoreDimension(
+    state.gate2Choice === "seek_official_help" || state.gate2Choice === "consult_ai",
+    state.gate2Choice === "pay_directly"
+  );
+  const unknownEntry = scoreDimension(
+    state.gate3Choice === "ignore_leave" || state.gate3Choice === "consult_ai_or_report",
+    state.gate3Choice === "scan_qr"
+  );
+  const pressureResist = scoreDimension(
+    state.firstChoice === "verify_first" && state.gate2Choice !== "pay_directly",
+    state.secondChoice === "submit_info" || state.gate2Choice === "pay_directly" || state.gate3Choice === "scan_qr"
+  );
+
+  const averageScore = Math.round((sourceAwareness + moneyBoundary + unknownEntry + pressureResist) / 4);
+  const overallProfile = averageScore >= 75
+    ? "谨慎核验型"
+    : averageScore < 45
+      ? "高风险轻信型"
+      : finalRuleProfile === "警惕型"
+        ? "谨慎核验型"
+        : "情境摇摆型";
+
+  return {
+    overallProfile,
+    overallReason: getMockOverallReason(overallProfile),
+    dimensions: [
+      {
+        name: "信息来源核验意识",
+        level: levelFromScore(sourceAwareness),
+        score: sourceAwareness,
+        reason: state.firstChoice === "verify_first"
+          ? "面对奖学金短信时能先核实来源，对陌生链接保持警惕。"
+          : "面对奖学金短信时曾被链接吸引，来源核验意识仍需加强。",
+      },
+      {
+        name: "资金交易边界意识",
+        level: levelFromScore(moneyBoundary),
+        score: moneyBoundary,
+        reason: state.gate2Choice === "pay_directly"
+          ? "面对陌生人代付请求时选择直接付款，资金边界意识待提升。"
+          : "面对代付请求时倾向官方帮助或先咨询，资金边界较清晰。",
+      },
+      {
+        name: "未知入口防范意识",
+        level: levelFromScore(unknownEntry),
+        score: unknownEntry,
+        reason: state.gate3Choice === "scan_qr"
+          ? "面对不明二维码时仍想扫码尝试，未知入口防范不足。"
+          : "面对可疑二维码时没有轻易扫码，未知入口防范意识较好。",
+      },
+      {
+        name: "紧迫话术抗干扰能力",
+        level: levelFromScore(pressureResist),
+        score: pressureResist,
+        reason: pressureResist >= 75
+          ? "面对限时通知和小额求助时整体能保持冷静。"
+          : "遇到限时、逾期或小额求助话术时仍可能被推动行动。",
+      },
+    ],
+    source: "mock",
+  };
+}
+
+function scoreDimension(positive, negative) {
+  if (negative) {
+    return positive ? 58 : 38;
+  }
+
+  return positive ? 88 : 65;
+}
+
+function levelFromScore(score) {
+  if (score >= 75) {
+    return "较强";
+  }
+
+  if (score >= 45) {
+    return "一般";
+  }
+
+  return "待提升";
+}
+
+function getMockOverallReason(profile) {
+  if (profile === "谨慎核验型") {
+    return "你在多数关键节点能够选择核实、求助或规避风险，整体具备较强的校园反诈意识。";
+  }
+
+  if (profile === "高风险轻信型") {
+    return "你在多个场景中出现直接点击、付款或扫码倾向，容易被紧迫话术、同情心或好奇心影响。";
+  }
+
+  return "你能识别一部分风险，但在不同情境下仍会摇摆，需要继续强化核实来源和边界意识。";
+}
+
+function renderFinalProfileReport(report) {
+  const container = storyStage.querySelector("#multiProfileSection");
+  if (!container) {
+    return;
+  }
+
+  const sourceLabel = report.source === "llm" ? "实时 AI 分类" : "离线分类演示";
+  const sourceClass = report.source === "llm" ? "is-live" : "";
+
+  container.innerHTML = `
+    <div class="multi-profile-head">
+      <div>
+        <p class="risk-title">AI 多维反诈画像分类</p>
+        <p class="choice-note">综合三关完整交互轨迹生成</p>
+      </div>
+      <span class="assistant-source-badge ${sourceClass}">${sourceLabel}</span>
+    </div>
+
+    <section class="overall-profile-card">
+      <p class="awareness-title">综合反诈画像</p>
+      <div class="profile-name">${report.overallProfile}</div>
+      <p class="awareness-reason">${report.overallReason}</p>
+    </section>
+
+    <section class="dimension-grid">
+      ${report.dimensions.map((dimension) => `
+        <div class="dimension-card">
+          <div class="dimension-topline">
+            <p class="review-title">${dimension.name}</p>
+            <span class="dimension-level ${getDimensionClass(dimension.level)}">${dimension.level}</span>
+          </div>
+          <div class="dimension-score">${dimension.score}</div>
+          <div class="score-bar" aria-label="${dimension.name}分数${dimension.score}">
+            <span style="width: ${dimension.score}%"></span>
+          </div>
+          <p class="awareness-reason">判定依据：${dimension.reason}</p>
+        </div>
+      `).join("")}
+    </section>
+  `;
+}
+
+function getDimensionClass(level) {
+  if (level === "较强") {
+    return "strong";
+  }
+
+  if (level === "待提升") {
+    return "weak";
+  }
+
+  return "medium";
 }
 
 function computeFinalRiskProfile() {

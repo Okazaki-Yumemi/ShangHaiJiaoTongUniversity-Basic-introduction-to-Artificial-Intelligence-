@@ -428,7 +428,10 @@ button {
 
 .profile-card,
 .review-card,
-.ai-note-card {
+.ai-note-card,
+.multi-profile-section,
+.overall-profile-card,
+.dimension-card {
   border: 1px solid rgba(103, 211, 255, 0.22);
   border-radius: 8px;
   padding: 16px;
@@ -436,8 +439,99 @@ button {
 }
 
 .profile-card,
-.ai-note-card {
+.ai-note-card,
+.multi-profile-section {
   margin: 22px 0;
+}
+
+.multi-profile-section {
+  border-color: rgba(126, 231, 179, 0.34);
+  background: linear-gradient(180deg, rgba(126, 231, 179, 0.11), rgba(103, 211, 255, 0.055));
+}
+
+.profile-loading {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.multi-profile-head,
+.dimension-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overall-profile-card {
+  margin: 16px 0;
+  border-color: rgba(126, 231, 179, 0.26);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.profile-name {
+  width: fit-content;
+  margin: 8px 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: #061018;
+  background: var(--success);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.dimension-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dimension-card {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.dimension-level {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #061018;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.dimension-level.strong {
+  background: var(--success);
+}
+
+.dimension-level.medium {
+  background: var(--accent-strong);
+}
+
+.dimension-level.weak {
+  background: var(--danger);
+}
+
+.dimension-score {
+  margin: 12px 0 8px;
+  color: var(--text);
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.score-bar {
+  height: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.score-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--success));
 }
 
 .review-grid {
@@ -746,6 +840,16 @@ button {
 
   .review-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dimension-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .multi-profile-head,
+  .dimension-topline {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
