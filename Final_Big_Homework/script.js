@@ -1432,7 +1432,7 @@ async function loadFinalProfileReport(finalRuleProfile) {
 
 async function requestRealFinalProfile(finalRuleProfile) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+  const timeoutId = window.setTimeout(() => controller.abort(), 30000);
 
   try {
     const response = await fetch("http://127.0.0.1:5000/api/anti-fraud-profile", {
