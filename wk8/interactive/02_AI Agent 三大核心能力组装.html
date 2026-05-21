@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 架构组装仿真</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: white;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        canvas {
+            touch-action: none;
+            width: 100%;
+            height: 100%;
+        }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .teacher-annotation {
+            pointer-events: none;
+        }
+        @keyframes pulse-highlight {
+            0%, 100% { outline-color: rgba(139, 92, 246, 0.8); }
+            50% { outline-color: rgba(139, 92, 246, 0.2); }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="flex flex-col md:flex-row h-screen">
+
+<script type="application/json" id="widget-config">
+{
+  "type": "simulation",
+  "concept": "agent_architecture_assembly",
+  "description": "通过拼装 LLM、Planning 和 Tools 模块，观察 Agent 完成复杂任务的效果",
+  "variables": [
+    { "name": "reasoning_depth", "label": "LLM 推理深度", "min": 1, "max": 10, "default": 5, "unit": "lvl" },
+    { "name": "tool_count", "label": "Tools 工具数量", "min": 1, "max": 10, "default": 3, "unit": "个" },
+    { "name": "memory_size", "label": "Planning 记忆容量", "min": 1, "max": 10, "default": 4, "unit": "slot" }
+  ],
+  "presets": [
+    { "name": "基础对话机器人", "variables": { "reasoning_depth": 3, "tool_count": 1, "memory_size": 2 } },
+    { "name": "全能型 Agent", "variables": { "reasoning_depth": 9, "tool_count": 8, "memory_size": 8 } },
+    { "name": "极客工具箱", "variables": { "reasoning_depth": 4, "tool_count": 10, "memory_size": 3 } }
+  ]
+}
+</script>
+
+<!-- UI Panel -->
+<div id="controls" class="w-full md:w-80 shrink-0 glass-panel flex flex-col z-10 overflow-y-auto">
+    <div class="p-4 border-b border-white/10">
+        <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-400">
+            Agent 架构组装
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">LLM(大脑) + Planning(神经) + Tools(手脚)</p>
+    </div>
+
+    <div class="p-4 space-y-6 flex-1">
+        <!-- Variable Sliders -->
+        <div class="space-y-4">
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <label class="text-slate-300">LLM 推理深度 (大脑)</label>
+                    <span id="reasoning_depth-display" class="font-mono text-purple-400">5</span>
+                </div>
+                <input type="range" id="reasoning_depth-slider" data-var="reasoning_depth" min="1" max="10" step="1" value="5"
+                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider-thumb">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <label class="text-slate-300">Tools 工具数量 (手脚)</label>
+                    <span id="tool_count-display" class="font-mono text-blue-400">3</span>
+                </div>
+                <input type="range" id="tool_count-slider" data-var="tool_count" min="1" max="10" step="1" value="3"
+                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider-thumb">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-sm mb-1">
+                    <label class="text-slate-300">Planning 记忆容量 (神经)</label>
+                    <span id="memory_size-display" class="font-mono text-cyan-400">4</span>
+                </div>
+                <input type="range" id="memory_size-slider" data-var="memory_size" min="1" max="10" step="1" value="4"
+                    class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider-thumb">
+            </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="space-y-2">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">快捷配置</p>
+            <div class="grid grid-cols-1 gap-2">
+                <button onclick="applyPreset(0)" class="text-left px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm transition">🤖 基础对话机器人</button>
+                <button onclick="applyPreset(1)" class="text-left px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm transition">🚀 全能型 Agent</button>
+                <button onclick="applyPreset(2)" class="text-left px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded text-sm transition">🛠️ 极客工具箱</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="p-4 bg-slate-900/50 space-y-2">
+        <button id="main-btn" onclick="toggleSimulation()" class="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold transition-all active:scale-95 flex items-center justify-center gap-2">
+            <span id="btn-text">启动系统</span>
+        </button>
+        <button id="reset-btn" onclick="resetSimulation()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">
+            重置组装
+        </button>
+    </div>
+</div>
+
+<!-- Simulation View -->
+<div class="flex-1 relative overflow-hidden bg-[#020617]">
+    <div id="status-hud" class="absolute top-4 left-4 p-3 rounded-lg glass-panel text-xs space-y-1 z-20 pointer-events-none">
+        <div class="flex items-center gap-2">
+            <div id="status-dot" class="w-2 h-2 rounded-full bg-slate-500"></div>
+            <span id="status-text">系统待机中...</span>
+        </div>
+        <div class="w-48 h-1.5 bg-slate-800 rounded-full mt-2 overflow-hidden">
+            <div id="progress-bar" class="w-0 h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"></div>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+            <span>任务进度</span>
+            <span id="progress-val">0%</span>
+        </div>
+    </div>
+
+    <canvas id="sim-canvas"></canvas>
+    
+    <!-- Success Message Overlay -->
+    <div id="success-overlay" class="absolute inset-0 flex items-center justify-center bg-black/60 hidden z-30 px-6">
+        <div class="bg-slate-800 p-8 rounded-2xl border border-purple-500/50 text-center max-w-sm animate-[fadeIn_0.5s]">
+            <div class="w-16 h-16 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">任务成功！</h2>
+            <p id="success-desc" class="text-slate-400 mb-6">Agent 成功协调三大模块，逻辑闭环。通过重置尝试不同性能配置。</p>
+            <button onclick="resetSimulation()" class="px-6 py-2 bg-purple-600 rounded-full font-bold hover:bg-purple-500 transition">再次尝试</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('sim-canvas');
+const ctx = canvas.getContext('2d');
+const mainBtn = document.getElementById('main-btn');
+const btnText = document.getElementById('btn-text');
+const progressBar = document.getElementById('progress-bar');
+const progressVal = document.getElementById('progress-val');
+const statusText = document.getElementById('status-text');
+const statusDot = document.getElementById('status-dot');
+
+// Simulation State
+let state = {
+    running: false,
+    paused: false,
+    ended: false,
+    progress: 0,
+    time: 0,
+    particles: [],
+    vars: {
+        reasoning_depth: 5,
+        tool_count: 3,
+        memory_size: 4
+    }
+};
+
+// Layout constants
+let width, height, centerX, centerY;
+const NODE_RADIUS = 50;
+
+function resize() {
+    width = canvas.width = canvas.offsetWidth;
+    height = canvas.height = canvas.offsetHeight;
+    centerX = width / 2;
+    centerY = height / 2;
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+// Input Listeners
+document.querySelectorAll('input[type="range"]').forEach(input => {
+    input.addEventListener('input', (e) => {
+        const key = e.target.getAttribute('data-var');
+        const val = parseInt(e.target.value);
+        state.vars[key] = val;
+        document.getElementById(`${key}-display`).innerText = val;
+        
+        if (state.ended) resetSimulation();
+    });
+});
+
+function applyPreset(index) {
+    const config = JSON.parse(document.getElementById('widget-config').textContent);
+    const preset = config.presets[index];
+    Object.entries(preset.variables).forEach(([key, val]) => {
+        state.vars[key] = val;
+        const slider = document.getElementById(`${key}-slider`);
+        slider.value = val;
+        document.getElementById(`${key}-display`).innerText = val;
+    });
+    resetSimulation();
+}
+
+function toggleSimulation() {
+    if (state.ended) {
+        resetSimulation();
+        start();
+    } else if (state.running) {
+        pause();
+    } else {
+        start();
+    }
+}
+
+function start() {
+    state.running = true;
+    state.paused = false;
+    state.ended = false;
+    btnText.innerText = "暂停系统";
+    statusDot.style.backgroundColor = "#22c55e";
+    statusText.innerText = "正在执行复杂任务...";
+    document.getElementById('success-overlay').classList.add('hidden');
+    requestAnimationFrame(animate);
+}
+
+function pause() {
+    state.running = false;
+    state.paused = true;
+    btnText.innerText = "继续执行";
+    statusDot.style.backgroundColor = "#eab308";
+    statusText.innerText = "系统暂停中";
+}
+
+function resetSimulation() {
+    state.running = false;
+    state.paused = false;
+    state.ended = false;
+    state.progress = 0;
+    state.time = 0;
+    state.particles = [];
+    
+    progressBar.style.width = '0%';
+    progressVal.innerText = '0%';
+    btnText.innerText = "启动系统";
+    statusDot.style.backgroundColor = "#64748b";
+    statusText.innerText = "系统待机中...";
+    document.getElementById('success-overlay').classList.add('hidden');
+    draw();
+}
+
+function onComplete() {
+    state.running = false;
+    state.ended = true;
+    btnText.innerText = "重新开始";
+    statusText.innerText = "任务已完成";
+    statusDot.style.backgroundColor = "#a855f7";
+    
+    // Evaluate performance
+    const score = (state.vars.reasoning_depth * 0.5 + state.vars.tool_count * 0.3 + state.vars.memory_size * 0.2);
+    const desc = document.getElementById('success-desc');
+    if (score > 7) desc.innerText = "表现完美！Agent 逻辑缜密，工具调用精准，展现了强大的自主性。";
+    else if (score > 4) desc.innerText = "执行尚可。虽然完成了任务，但在理解深度或执行效率上仍有提升空间。";
+    else desc.innerText = "勉强完成。由于核心模块配置偏低，任务执行过程中出现了多次延迟与不确定性。";
+    
+    document.getElementById('success-overlay').classList.remove('hidden');
+}
+
+// Particle system for data flow
+function spawnParticle(fromX, fromY, toX, toY, color) {
+    state.particles.push({
+        x: fromX,
+        y: fromY,
+        tx: toX,
+        ty: toY,
+        p: 0,
+        speed: 0.02 + Math.random() * 0.02,
+        color: color
+    });
+}
+
+function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Dynamic grid
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    const spacing = 40;
+    for(let x=0; x<width; x+=spacing) {
+        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+    }
+    for(let y=0; y<height; y+=spacing) {
+        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+    }
+
+    // Node Positions
+    const nodes = [
+        { id: 'LLM', x: centerX, y: centerY - 100, label: 'LLM 大脑', color: '#a855f7', val: state.vars.reasoning_depth },
+        { id: 'Planning', x: centerX - 120, y: centerY + 80, label: 'Planning 神经', color: '#06b6d4', val: state.vars.memory_size },
+        { id: 'Tools', x: centerX + 120, y: centerY + 80, label: 'Tools 执行器', color: '#3b82f6', val: state.vars.tool_count }
+    ];
+
+    // Draw Connections
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(nodes[0].x, nodes[0].y);
+    ctx.lineTo(nodes[1].x, nodes[1].y);
+    ctx.lineTo(nodes[2].x, nodes[2].y);
+    ctx.lineTo(nodes[0].x, nodes[0].y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Particles animation
+    if (state.running) {
+        state.time++;
+        if (state.time % 20 === 0) {
+            const r = Math.floor(Math.random() * 3);
+            const target = (r + 1) % 3;
+            spawnParticle(nodes[r].x, nodes[r].y, nodes[target].x, nodes[target].y, nodes[r].color);
+        }
+    }
+
+    state.particles.forEach((p, i) => {
+        p.p += p.speed;
+        const curX = p.x + (p.tx - p.x) * p.p;
+        const curY = p.y + (p.ty - p.y) * p.p;
+        
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(curX, curY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = p.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        if (p.p >= 1) state.particles.splice(i, 1);
+    });
+
+    // Draw Nodes
+    nodes.forEach(node => {
+        // Pulse effect
+        const pulse = state.running ? Math.sin(state.time * 0.1) * 5 : 0;
+        
+        // Outer Ring
+        ctx.strokeStyle = node.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, NODE_RADIUS + pulse, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Fill
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, NODE_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Progress indicator per node
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, NODE_RADIUS - 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = node.color;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, NODE_RADIUS - 8, -Math.PI/2, -Math.PI/2 + (node.val/10) * Math.PI * 2);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, node.x, node.y + 5);
+        ctx.font = '10px monospace';
+        ctx.fillStyle = node.color;
+        ctx.fillText(`LVL ${node.val}`, node.x, node.y + 20);
+    });
+
+    // Central Status Info
+    if (state.running || state.paused) {
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.1)';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY - 10, 30, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#8b5cf6';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(Math.floor(state.progress) + "%", centerX, centerY - 2);
+    }
+}
+
+function animate() {
+    if (!state.running) return;
+
+    // Logic for progress: speed depends on all three variables
+    // Penalty if any variable is extremely low
+    const penalty = (state.vars.reasoning_depth < 2 || state.vars.tool_count < 1 || state.vars.memory_size < 1) ? 0.2 : 1;
+    const delta = (state.vars.reasoning_depth * 0.1 + state.vars.tool_count * 0.05 + state.vars.memory_size * 0.05) * penalty;
+    
+    state.progress += delta;
+    if (state.progress >= 100) {
+        state.progress = 100;
+        onComplete();
+    }
+
+    progressBar.style.width = state.progress + '%';
+    progressVal.innerText = Math.floor(state.progress) + '%';
+
+    draw();
+    requestAnimationFrame(animate);
+}
+
+// Teacher Message Listener
+window.addEventListener('message', function(event) {
+    const { type, target, state: newState, content } = event.data;
+
+    switch (type) {
+        case 'SET_WIDGET_STATE':
+            if (newState) {
+                Object.entries(newState).forEach(([key, value]) => {
+                    const slider = document.getElementById(key + '-slider');
+                    if (slider) {
+                        slider.value = value;
+                        slider.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                });
+            }
+            break;
+        case 'HIGHLIGHT_ELEMENT':
+            const highlightEl = document.querySelector(target);
+            if (highlightEl) {
+                highlightEl.style.outline = '3px solid rgba(139, 92, 246, 0.8)';
+                highlightEl.style.outlineOffset = '4px';
+                highlightEl.style.animation = 'pulse-highlight 2s infinite';
+                setTimeout(() => {
+                    highlightEl.style.outline = '';
+                    highlightEl.style.animation = '';
+                }, 4000);
+            }
+            break;
+        case 'ANNOTATE_ELEMENT':
+            const annotateEl = document.querySelector(target);
+            if (annotateEl && content) {
+                const rect = annotateEl.getBoundingClientRect();
+                const tooltip = document.createElement('div');
+                tooltip.className = 'teacher-annotation';
+                tooltip.style.cssText = `position:fixed; top:${rect.top - 50}px; left:${rect.left}px; background:rgba(139,92,246,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:14px; z-index:1000; animation:fadeIn 0.3s; box-shadow: 0 4px 12px rgba(0,0,0,0.3);`;
+                tooltip.textContent = content;
+                document.body.appendChild(tooltip);
+                setTimeout(() => tooltip.remove(), 4000);
+            }
+            break;
+    }
+});
+
+// Animation CSS
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes pulse-highlight { 0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 50% { outline-color: rgba(139, 92, 246, 0.3); } }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+`;
+document.head.appendChild(style);
+
+// Initial Draw
+draw();
+
+// Keyboard support
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+        e.preventDefault();
+        toggleSimulation();
+    } else if (e.code === 'KeyR') {
+        resetSimulation();
+    }
+});
+</script>
+</body>
+</html>

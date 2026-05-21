@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 架构图: LLM + Tools + Planning + Memory</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --node-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #38bdf8;
+            --edge-color: #334155;
+            --node-width: 180px;
+            --node-height: 70px;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100%; height: 100%;
+            cursor: grab;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        svg { width: 100%; height: 100%; touch-action: none; }
+
+        .node {
+            cursor: pointer;
+            transition: opacity 0.4s ease, transform 0.2s ease;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+        .node:hover rect { stroke: var(--accent); stroke-width: 2px; }
+        .node rect { fill: var(--node-bg); stroke: var(--edge-color); rx: 8; ry: 8; }
+        .node text { fill: var(--text-main); font-size: 14px; pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
+        .node .icon { font-size: 20px; }
+        .node.hidden { opacity: 0; pointer-events: none; }
+
+        .edge-group { transition: opacity 0.5s ease; }
+        .edge-group.hidden { opacity: 0; }
+        .edge { fill: none; stroke: var(--edge-color); stroke-width: 2; marker-end: url(#arrowhead); }
+        .edge-label { fill: var(--text-dim); font-size: 11px; text-anchor: middle; paint-order: stroke; stroke: var(--bg-color); stroke-width: 3px; }
+
+        /* Sidebar & UI */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+
+        .controls {
+            position: absolute; bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto;
+        }
+
+        button {
+            background: var(--node-bg); color: var(--text-main);
+            border: 1px solid var(--edge-color);
+            padding: 10px 20px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; transition: all 0.2s;
+        }
+        button:hover { background: var(--edge-color); border-color: var(--accent); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        #details-panel {
+            position: absolute; right: 20px; top: 20px;
+            width: 300px; max-height: 80vh;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--edge-color);
+            border-radius: 12px; padding: 20px;
+            pointer-events: auto; overflow-y: auto;
+            transform: translateX(340px); transition: transform 0.3s ease;
+        }
+        #details-panel.open { transform: translateX(0); }
+        #details-panel h3 { margin-top: 0; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+        #details-panel p { line-height: 1.6; color: var(--text-dim); font-size: 14px; }
+        .close-panel { position: absolute; top: 10px; right: 10px; cursor: pointer; color: var(--text-dim); }
+
+        @media (max-width: 600px) {
+            #details-panel { width: calc(100% - 40px); right: 20px; left: 20px; bottom: 80px; top: auto; max-height: 40vh; }
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body>
+
+<div id="canvas-container">
+    <svg id="diagram-svg" viewBox="-500 -350 1000 700">
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#334155" />
+            </marker>
+        </defs>
+        <g id="edges-layer"></g>
+        <g id="nodes-layer"></g>
+    </svg>
+</div>
+
+<div id="ui-layer">
+    <div id="details-panel">
+        <span class="close-panel" onclick="closePanel()">✕</span>
+        <h3 id="panel-title"></h3>
+        <p id="panel-desc"></p>
+    </div>
+
+    <div class="controls">
+        <button id="prev-btn" onclick="changeStep(-1)">上一步</button>
+        <button id="next-btn" onclick="changeStep(1)">下一步</button>
+    </div>
+</div>
+
+<script type="application/json" id="widget-config">
+{
+  "nodes": [
+    { "id": "n1", "x": 0, "y": 0, "icon": "🤖", "label": "AI Agent", "details": "工业级 AI Agent 核心架构。它不仅仅是 LLM，而是以模型为大脑，集规划、工具、记忆于一体的智能系统。" },
+    { "id": "n2", "x": -250, "y": -120, "icon": "🧠", "label": "LLM (大脑)", "details": "Large Language Model：负责意图解析、推理逻辑。Agent 的指挥中心，决定何时调用工具或进行反思。" },
+    { "id": "n3", "x": 250, "y": -120, "icon": "🧭", "label": "Planning (规划)", "details": "拆解复杂任务。包括 CoT (思维链) 逐步思考、Reflection (反思) 自我纠错，以及 ReAct 模式。" },
+    { "id": "n4", "x": -250, "y": 120, "icon": "🛠️", "label": "Tools (工具)", "details": "Agent 的双手。通过 API 连接外部世界，执行本地代码，或通过 MCP (Model Context Protocol) 扩展能力。" },
+    { "id": "n5", "x": 250, "y": 120, "icon": "💾", "label": "Memory (记忆)", "details": "持久化系统。短期记忆利用 Context Window，长期记忆利用 RAG (检索增强生成) 或外部数据库。" },
+    { "id": "n6", "x": 420, "y": -180, "icon": "🔗", "label": "CoT / ReAct", "details": "Chain of Thought：通过分步推理提高逻辑性；ReAct：结合推理与行动的动态调整过程。" },
+    { "id": "n7", "x": 420, "y": -60, "icon": "🔄", "label": "Reflection", "details": "Agent 对自身生成的计划或代码进行检查，通过反馈循环（Self-Correction）优化输出质量。" },
+    { "id": "n8", "x": -420, "y": 60, "icon": "🔌", "label": "API / MCP", "details": "Model Context Protocol：标准化的工具连接协议，让 Agent 能够即插即用各类数据源和工具。" },
+    { "id": "n9", "x": -420, "y": 180, "icon": "💻", "label": "Local Code", "details": "沙盒执行环境。Agent 可以根据需求实时编写并运行 Python/JS 代码来解决数学或数据分析问题。" },
+    { "id": "n10", "x": 250, "y": 260, "icon": "📚", "label": "RAG / Long-term", "details": "检索增强生成。将海量知识向量化存储，按需调取，解决 LLM 的幻觉问题并提供垂直领域知识。" }
+  ],
+  "edges": [
+    { "from": "n1", "to": "n2", "label": "核心推理" },
+    { "from": "n1", "to": "n3", "label": "策略拆解" },
+    { "from": "n1", "to": "n4", "label": "动作执行" },
+    { "from": "n1", "to": "n5", "label": "信息存储" },
+    { "from": "n3", "to": "n6", "label": "实现" },
+    { "from": "n3", "to": "n7", "label": "优化" },
+    { "from": "n4", "to": "n8", "label": "连接" },
+    { "from": "n4", "to": "n9", "label": "运行" },
+    { "from": "n5", "to": "n10", "label": "扩展" }
+  ],
+  "revealOrder": ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9", "n10"]
+}
+</script>
+
+<script>
+    const config = JSON.parse(document.getElementById('widget-config').textContent);
+    const NODE_WIDTH = 180, NODE_HEIGHT = 70, ARROW_OFFSET = 10;
+    let currentStep = 0;
+
+    function getEdgePoints(from, to) {
+        const dx = to.x - from.x, dy = to.y - from.y;
+        let sx, sy, ex, ey;
+        if (Math.abs(dy) > Math.abs(dx)) {
+            sx = from.x;
+            sy = dy > 0 ? from.y + NODE_HEIGHT/2 : from.y - NODE_HEIGHT/2;
+            ex = to.x;
+            ey = dy > 0 ? to.y - NODE_HEIGHT/2 - ARROW_OFFSET : to.y + NODE_HEIGHT/2 + ARROW_OFFSET;
+        } else {
+            sx = dx > 0 ? from.x + NODE_WIDTH/2 : from.x - NODE_WIDTH/2;
+            sy = from.y;
+            ex = dx > 0 ? to.x - NODE_WIDTH/2 - ARROW_OFFSET : to.x + NODE_WIDTH/2 + ARROW_OFFSET;
+            ey = to.y;
+        }
+        return `M ${sx} ${sy} L ${ex} ${ey}`;
+    }
+
+    function init() {
+        const nodesLayer = document.getElementById('nodes-layer');
+        const edgesLayer = document.getElementById('edges-layer');
+
+        // Create Edges
+        config.edges.forEach((edge, index) => {
+            const fromNode = config.nodes.find(n => n.id === edge.from);
+            const toNode = config.nodes.find(n => n.id === edge.to);
+            const d = getEdgePoints(fromNode, toNode);
+            
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("class", "edge-group hidden");
+            g.setAttribute("id", `edge-${edge.to}`);
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", d);
+            path.setAttribute("class", "edge");
+            
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", (fromNode.x + toNode.x) / 2);
+            label.setAttribute("y", (fromNode.y + toNode.y) / 2 - 10);
+            label.setAttribute("class", "edge-label");
+            label.textContent = edge.label;
+
+            g.appendChild(path);
+            g.appendChild(label);
+            edgesLayer.appendChild(g);
+        });
+
+        // Create Nodes
+        config.nodes.forEach((node) => {
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("class", "node hidden");
+            g.setAttribute("id", `node-${node.id}`);
+            g.setAttribute("transform", `translate(${node.x},${node.y})`);
+            g.onclick = () => showDetails(node);
+
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", -NODE_WIDTH/2);
+            rect.setAttribute("y", -NODE_HEIGHT/2);
+            rect.setAttribute("width", NODE_WIDTH);
+            rect.setAttribute("height", NODE_HEIGHT);
+
+            const icon = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            icon.setAttribute("class", "icon");
+            icon.setAttribute("y", -5);
+            icon.textContent = node.icon;
+
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("y", 20);
+            text.textContent = node.label;
+
+            g.appendChild(rect);
+            g.appendChild(icon);
+            g.appendChild(text);
+            nodesLayer.appendChild(g);
+        });
+
+        updateVisibility();
+    }
+
+    function showDetails(node) {
+        document.getElementById('panel-title').innerHTML = `${node.icon} ${node.label}`;
+        document.getElementById('panel-desc').textContent = node.details;
+        document.getElementById('details-panel').classList.add('open');
+    }
+
+    function closePanel() {
+        document.getElementById('details-panel').classList.remove('open');
+    }
+
+    function changeStep(dir) {
+        currentStep = Math.max(0, Math.min(config.revealOrder.length - 1, currentStep + dir));
+        updateVisibility();
+        closePanel();
+    }
+
+    function updateVisibility() {
+        config.revealOrder.forEach((nodeId, index) => {
+            const nodeEl = document.getElementById(`node-${nodeId}`);
+            const edgeEl = document.getElementById(`edge-${nodeId}`);
+            if (index <= currentStep) {
+                nodeEl.classList.remove('hidden');
+                if (edgeEl) edgeEl.classList.remove('hidden');
+            } else {
+                nodeEl.classList.add('hidden');
+                if (edgeEl) edgeEl.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('prev-btn').disabled = currentStep === 0;
+        document.getElementById('next-btn').disabled = currentStep === config.revealOrder.length - 1;
+        
+        // Auto-show details for the latest revealed node
+        const activeId = config.revealOrder[currentStep];
+        const activeNode = config.nodes.find(n => n.id === activeId);
+        showDetails(activeNode);
+    }
+
+    // Basic Pan/Zoom support
+    let isPanning = false;
+    let startPoint = { x: 0, y: 0 };
+    let viewBox = { x: -500, y: -350, w: 1000, h: 700 };
+    const svg = document.getElementById('diagram-svg');
+
+    svg.addEventListener('mousedown', e => { isPanning = true; startPoint = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mousemove', e => {
+        if (!isPanning) return;
+        const dx = (e.clientX - startPoint.x) * (viewBox.w / svg.clientWidth);
+        const dy = (e.clientY - startPoint.y) * (viewBox.h / svg.clientHeight);
+        viewBox.x -= dx;
+        viewBox.y -= dy;
+        svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+        startPoint = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('mouseup', () => isPanning = false);
+
+    init();
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent 架构图: LLM + Tools + Planning + Memory</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --node-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #38bdf8;
+            --edge-color: #334155;
+            --node-width: 180px;
+            --node-height: 70px;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100%; height: 100%;
+            cursor: grab;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        svg { width: 100%; height: 100%; touch-action: none; }
+
+        .node {
+            cursor: pointer;
+            transition: opacity 0.4s ease, transform 0.2s ease;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+        }
+        .node:hover rect { stroke: var(--accent); stroke-width: 2px; }
+        .node rect { fill: var(--node-bg); stroke: var(--edge-color); rx: 8; ry: 8; }
+        .node text { fill: var(--text-main); font-size: 14px; pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
+        .node .icon { font-size: 20px; }
+        .node.hidden { opacity: 0; pointer-events: none; }
+
+        .edge-group { transition: opacity 0.5s ease; }
+        .edge-group.hidden { opacity: 0; }
+        .edge { fill: none; stroke: var(--edge-color); stroke-width: 2; marker-end: url(#arrowhead); }
+        .edge-label { fill: var(--text-dim); font-size: 11px; text-anchor: middle; paint-order: stroke; stroke: var(--bg-color); stroke-width: 3px; }
+
+        /* Sidebar & UI */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+
+        .controls {
+            position: absolute; bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto;
+        }
+
+        button {
+            background: var(--node-bg); color: var(--text-main);
+            border: 1px solid var(--edge-color);
+            padding: 10px 20px; border-radius: 6px; cursor: pointer;
+            font-size: 14px; transition: all 0.2s;
+        }
+        button:hover { background: var(--edge-color); border-color: var(--accent); }
+        button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        #details-panel {
+            position: absolute; right: 20px; top: 20px;
+            width: 300px; max-height: 80vh;
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--edge-color);
+            border-radius: 12px; padding: 20px;
+            pointer-events: auto; overflow-y: auto;
+            transform: translateX(340px); transition: transform 0.3s ease;
+        }
+        #details-panel.open { transform: translateX(0); }
+        #details-panel h3 { margin-top: 0; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+        #details-panel p { line-height: 1.6; color: var(--text-dim); font-size: 14px; }
+        .close-panel { position: absolute; top: 10px; right: 10px; cursor: pointer; color: var(--text-dim); }
+
+        @media (max-width: 600px) {
+            #details-panel { width: calc(100% - 40px); right: 20px; left: 20px; bottom: 80px; top: auto; max-height: 40vh; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="canvas-container">
+    <svg id="diagram-svg" viewBox="-500 -350 1000 700">
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#334155" />
+            </marker>
+        </defs>
+        <g id="edges-layer"></g>
+        <g id="nodes-layer"></g>
+    </svg>
+</div>
+
+<div id="ui-layer">
+    <div id="details-panel">
+        <span class="close-panel" onclick="closePanel()">✕</span>
+        <h3 id="panel-title"></h3>
+        <p id="panel-desc"></p>
+    </div>
+
+    <div class="controls">
+        <button id="prev-btn" onclick="changeStep(-1)">上一步</button>
+        <button id="next-btn" onclick="changeStep(1)">下一步</button>
+    </div>
+</div>
+
+<script type="application/json" id="widget-config">
+{
+  "nodes": [
+    { "id": "n1", "x": 0, "y": 0, "icon": "🤖", "label": "AI Agent", "details": "工业级 AI Agent 核心架构。它不仅仅是 LLM，而是以模型为大脑，集规划、工具、记忆于一体的智能系统。" },
+    { "id": "n2", "x": -250, "y": -120, "icon": "🧠", "label": "LLM (大脑)", "details": "Large Language Model：负责意图解析、推理逻辑。Agent 的指挥中心，决定何时调用工具或进行反思。" },
+    { "id": "n3", "x": 250, "y": -120, "icon": "🧭", "label": "Planning (规划)", "details": "拆解复杂任务。包括 CoT (思维链) 逐步思考、Reflection (反思) 自我纠错，以及 ReAct 模式。" },
+    { "id": "n4", "x": -250, "y": 120, "icon": "🛠️", "label": "Tools (工具)", "details": "Agent 的双手。通过 API 连接外部世界，执行本地代码，或通过 MCP (Model Context Protocol) 扩展能力。" },
+    { "id": "n5", "x": 250, "y": 120, "icon": "💾", "label": "Memory (记忆)", "details": "持久化系统。短期记忆利用 Context Window，长期记忆利用 RAG (检索增强生成) 或外部数据库。" },
+    { "id": "n6", "x": 420, "y": -180, "icon": "🔗", "label": "CoT / ReAct", "details": "Chain of Thought：通过分步推理提高逻辑性；ReAct：结合推理与行动的动态调整过程。" },
+    { "id": "n7", "x": 420, "y": -60, "icon": "🔄", "label": "Reflection", "details": "Agent 对自身生成的计划或代码进行检查，通过反馈循环（Self-Correction）优化输出质量。" },
+    { "id": "n8", "x": -420, "y": 60, "icon": "🔌", "label": "API / MCP", "details": "Model Context Protocol：标准化的工具连接协议，让 Agent 能够即插即用各类数据源和工具。" },
+    { "id": "n9", "x": -420, "y": 180, "icon": "💻", "label": "Local Code", "details": "沙盒执行环境。Agent 可以根据需求实时编写并运行 Python/JS 代码来解决数学或数据分析问题。" },
+    { "id": "n10", "x": 250, "y": 260, "icon": "📚", "label": "RAG / Long-term", "details": "检索增强生成。将海量知识向量化存储，按需调取，解决 LLM 的幻觉问题并提供垂直领域知识。" }
+  ],
+  "edges": [
+    { "from": "n1", "to": "n2", "label": "核心推理" },
+    { "from": "n1", "to": "n3", "label": "策略拆解" },
+    { "from": "n1", "to": "n4", "label": "动作执行" },
+    { "from": "n1", "to": "n5", "label": "信息存储" },
+    { "from": "n3", "to": "n6", "label": "实现" },
+    { "from": "n3", "to": "n7", "label": "优化" },
+    { "from": "n4", "to": "n8", "label": "连接" },
+    { "from": "n4", "to": "n9", "label": "运行" },
+    { "from": "n5", "to": "n10", "label": "扩展" }
+  ],
+  "revealOrder": ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9", "n10"]
+}
+</script>
+
+<script>
+    const config = JSON.parse(document.getElementById('widget-config').textContent);
+    const NODE_WIDTH = 180, NODE_HEIGHT = 70, ARROW_OFFSET = 10;
+    let currentStep = 0;
+
+    function getEdgePoints(from, to) {
+        const dx = to.x - from.x, dy = to.y - from.y;
+        let sx, sy, ex, ey;
+        if (Math.abs(dy) > Math.abs(dx)) {
+            sx = from.x;
+            sy = dy > 0 ? from.y + NODE_HEIGHT/2 : from.y - NODE_HEIGHT/2;
+            ex = to.x;
+            ey = dy > 0 ? to.y - NODE_HEIGHT/2 - ARROW_OFFSET : to.y + NODE_HEIGHT/2 + ARROW_OFFSET;
+        } else {
+            sx = dx > 0 ? from.x + NODE_WIDTH/2 : from.x - NODE_WIDTH/2;
+            sy = from.y;
+            ex = dx > 0 ? to.x - NODE_WIDTH/2 - ARROW_OFFSET : to.x + NODE_WIDTH/2 + ARROW_OFFSET;
+            ey = to.y;
+        }
+        return `M ${sx} ${sy} L ${ex} ${ey}`;
+    }
+
+    function init() {
+        const nodesLayer = document.getElementById('nodes-layer');
+        const edgesLayer = document.getElementById('edges-layer');
+
+        // Create Edges
+        config.edges.forEach((edge, index) => {
+            const fromNode = config.nodes.find(n => n.id === edge.from);
+            const toNode = config.nodes.find(n => n.id === edge.to);
+            const d = getEdgePoints(fromNode, toNode);
+            
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("class", "edge-group hidden");
+            g.setAttribute("id", `edge-${edge.to}`);
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", d);
+            path.setAttribute("class", "edge");
+            
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", (fromNode.x + toNode.x) / 2);
+            label.setAttribute("y", (fromNode.y + toNode.y) / 2 - 10);
+            label.setAttribute("class", "edge-label");
+            label.textContent = edge.label;
+
+            g.appendChild(path);
+            g.appendChild(label);
+            edgesLayer.appendChild(g);
+        });
+
+        // Create Nodes
+        config.nodes.forEach((node) => {
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            g.setAttribute("class", "node hidden");
+            g.setAttribute("id", `node-${node.id}`);
+            g.setAttribute("transform", `translate(${node.x},${node.y})`);
+            g.onclick = () => showDetails(node);
+
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", -NODE_WIDTH/2);
+            rect.setAttribute("y", -NODE_HEIGHT/2);
+            rect.setAttribute("width", NODE_WIDTH);
+            rect.setAttribute("height", NODE_HEIGHT);
+
+            const icon = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            icon.setAttribute("class", "icon");
+            icon.setAttribute("y", -5);
+            icon.textContent = node.icon;
+
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("y", 20);
+            text.textContent = node.label;
+
+            g.appendChild(rect);
+            g.appendChild(icon);
+            g.appendChild(text);
+            nodesLayer.appendChild(g);
+        });
+
+        updateVisibility();
+    }
+
+    function showDetails(node) {
+        document.getElementById('panel-title').innerHTML = `${node.icon} ${node.label}`;
+        document.getElementById('panel-desc').textContent = node.details;
+        document.getElementById('details-panel').classList.add('open');
+    }
+
+    function closePanel() {
+        document.getElementById('details-panel').classList.remove('open');
+    }
+
+    function changeStep(dir) {
+        currentStep = Math.max(0, Math.min(config.revealOrder.length - 1, currentStep + dir));
+        updateVisibility();
+        closePanel();
+    }
+
+    function updateVisibility() {
+        config.revealOrder.forEach((nodeId, index) => {
+            const nodeEl = document.getElementById(`node-${nodeId}`);
+            const edgeEl = document.getElementById(`edge-${nodeId}`);
+            if (index <= currentStep) {
+                nodeEl.classList.remove('hidden');
+                if (edgeEl) edgeEl.classList.remove('hidden');
+            } else {
+                nodeEl.classList.add('hidden');
+                if (edgeEl) edgeEl.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('prev-btn').disabled = currentStep === 0;
+        document.getElementById('next-btn').disabled = currentStep === config.revealOrder.length - 1;
+        
+        // Auto-show details for the latest revealed node
+        const activeId = config.revealOrder[currentStep];
+        const activeNode = config.nodes.find(n => n.id === activeId);
+        showDetails(activeNode);
+    }
+
+    // Basic Pan/Zoom support
+    let isPanning = false;
+    let startPoint = { x: 0, y: 0 };
+    let viewBox = { x: -500, y: -350, w: 1000, h: 700 };
+    const svg = document.getElementById('diagram-svg');
+
+    svg.addEventListener('mousedown', e => { isPanning = true; startPoint = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mousemove', e => {
+        if (!isPanning) return;
+        const dx = (e.clientX - startPoint.x) * (viewBox.w / svg.clientWidth);
+        const dy = (e.clientY - startPoint.y) * (viewBox.h / svg.clientHeight);
+        viewBox.x -= dx;
+        viewBox.y -= dy;
+        svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+        startPoint = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('mouseup', () => isPanning = false);
+
+    init();
+</script>
+</body>
+</html>

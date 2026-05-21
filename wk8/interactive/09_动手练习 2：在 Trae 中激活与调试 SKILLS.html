@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trae 技能管理模拟器 (Trae Skills Management)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --trae-purple: #8b5cf6;
+            --trae-bg: #1e1e1e;
+            --trae-panel: #252526;
+            --trae-border: #333333;
+        }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--trae-purple);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .canvas-container {
+            background-color: var(--trae-bg);
+            border: 1px solid var(--trae-border);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        .debug-log {
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 12px;
+            scrollbar-width: thin;
+        }
+        .debug-log::-webkit-scrollbar { width: 4px; }
+        .debug-log::-webkit-scrollbar-thumb { background: #444; }
+        @keyframes pulse-highlight { 
+            0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 
+            50% { outline-color: rgba(139, 92, 246, 0.4); } 
+        }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .touch-action-none { touch-action: none; }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="flex flex-col md:flex-row min-h-screen p-4 gap-4">
+
+    <!-- Widget Configuration -->
+    <script type="application/json" id="widget-config">
+    {
+      "type": "simulation",
+      "concept": "trae_skills_management",
+      "description": "模拟 Trae AI Agent 的技能发现、本地导入、调试及冲突处理全流程。",
+      "variables": [
+        { "name": "skill_activation", "label": "技能活跃度", "min": 0, "max": 100, "default": 30, "unit": "%" },
+        { "name": "prompt_override_strength", "label": "指令覆盖强度", "min": 0, "max": 1, "default": 0.5, "step": 0.1, "unit": "x" },
+        { "name": "debugging_visibility", "label": "调试透明度", "min": 0, "max": 1, "default": 0.2, "step": 0.1, "unit": "lvl" }
+      ],
+      "presets": [
+        { "name": "技能发现模式", "variables": { "skill_activation": 20, "prompt_override_strength": 0.3, "debugging_visibility": 0.1 } },
+        { "name": "深度调试分析", "variables": { "skill_activation": 80, "prompt_override_strength": 0.9, "debugging_visibility": 1.0 } },
+        { "name": "冲突处理演示", "variables": { "skill_activation": 100, "prompt_override_strength": 0.6, "debugging_visibility": 0.5 } }
+      ]
+    }
+    </script>
+
+    <!-- Control Panel -->
+    <aside id="controls" class="w-full md:w-80 shrink-0 bg-gray-900 border border-gray-700 rounded-xl p-6 overflow-y-auto max-h-[45vh] md:max-h-[calc(100vh-2rem)] flex flex-col gap-6 shadow-2xl order-2 md:order-1">
+        <div>
+            <h2 class="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                Trae 控制面板
+            </h2>
+            <p class="text-xs text-gray-400">管理 AI Agent 的技能与 Context 环境</p>
+        </div>
+
+        <!-- Variable Sliders -->
+        <div class="space-y-6">
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <label class="text-gray-300">技能活跃度 (Activation)</label>
+                    <span id="skill_activation-display" class="font-mono text-purple-400">30%</span>
+                </div>
+                <input type="range" id="skill_activation-slider" data-var="skill_activation" min="0" max="100" value="30" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb">
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <label class="text-gray-300">指令强度 (Override)</label>
+                    <span id="prompt_override_strength-display" class="font-mono text-purple-400">0.5x</span>
+                </div>
+                <input type="range" id="prompt_override_strength-slider" data-var="prompt_override_strength" min="0" max="1" step="0.1" value="0.5" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb">
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex justify-between text-sm">
+                    <label class="text-gray-300">调试透明度 (Debug)</label>
+                    <span id="debugging_visibility-display" class="font-mono text-purple-400">0.2lvl</span>
+                </div>
+                <input type="range" id="debugging_visibility-slider" data-var="debugging_visibility" min="0" max="1" step="0.1" value="0.2" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider-thumb">
+            </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="space-y-3">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">预设方案</p>
+            <div class="grid grid-cols-1 gap-2">
+                <button onclick="applyPreset(0)" class="text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md text-sm transition-colors">技能发现模式</button>
+                <button onclick="applyPreset(1)" class="text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md text-sm transition-colors">深度调试分析</button>
+                <button onclick="applyPreset(2)" class="text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md text-sm transition-colors">冲突处理演示</button>
+            </div>
+        </div>
+
+        <!-- Main Buttons -->
+        <div class="flex gap-2 mt-auto pt-4">
+            <button id="main-btn" onclick="toggleSimulation()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg transition-all transform active:scale-95 shadow-lg">启动仿真</button>
+            <button id="reset-btn" onclick="resetSimulation()" class="px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-all">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Simulation Canvas Area -->
+    <main class="flex-1 flex flex-col gap-4 order-1 md:order-2">
+        <div class="canvas-container flex-1 min-h-[400px]">
+            <canvas id="simCanvas" class="w-full h-full touch-action-none"></canvas>
+            
+            <!-- Real-time HUD -->
+            <div class="absolute top-4 left-4 p-3 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 pointer-events-none">
+                <div class="text-[10px] text-gray-400 uppercase mb-1">Trae Agent 状态</div>
+                <div class="flex items-center gap-3">
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-400">Context Window</span>
+                        <div class="w-24 h-1.5 bg-gray-800 rounded-full mt-1 overflow-hidden">
+                            <div id="context-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-xs text-gray-400">LLM Inference</span>
+                        <span id="status-text" class="text-sm font-mono text-green-400">IDLE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Floating Overlay Message -->
+            <div id="completion-overlay" class="absolute inset-0 flex items-center justify-center bg-black/40 hidden backdrop-blur-sm transition-opacity">
+                <div class="bg-gray-900 border border-purple-500/50 p-6 rounded-2xl text-center shadow-2xl transform scale-110">
+                    <div class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-1 text-white">技能流转完成</h3>
+                    <p class="text-gray-400 text-sm mb-4">LLM 已根据本地指令优化输出</p>
+                    <button onclick="resetSimulation()" class="px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded-full text-sm font-medium transition-all">重新演示</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Debug Console Output -->
+        <div class="h-40 bg-black/80 rounded-lg border border-gray-800 flex flex-col overflow-hidden">
+            <div class="flex items-center justify-between px-3 py-1.5 bg-gray-800/50 border-b border-gray-700">
+                <span class="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                    Trae Skill Console (MCP Debugger)
+                </span>
+                <span class="text-[10px] text-gray-600 font-mono">DEBUG_MODE_V1.2</span>
+            </div>
+            <div id="debug-log" class="debug-log flex-1 p-3 overflow-y-auto text-gray-400 leading-relaxed">
+                > 等待指令输入...
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Simulation State
+        const state = {
+            running: false,
+            paused: false,
+            ended: false,
+            progress: 0,
+            startTime: 0,
+            particles: [],
+            logs: [],
+            vars: {
+                skill_activation: 30,
+                prompt_override_strength: 0.5,
+                debugging_visibility: 0.2
+            }
+        };
+
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const debugLogEl = document.getElementById('debug-log');
+        const mainBtn = document.getElementById('main-btn');
+        const statusText = document.getElementById('status-text');
+        const contextBar = document.getElementById('context-bar');
+        const completionOverlay = document.getElementById('completion-overlay');
+
+        const skills = [
+            { id: 'S1', name: 'Code Auditor', color: '#8b5cf6', type: 'System' },
+            { id: 'S2', name: 'PR Reviewer', color: '#3b82f6', type: 'Local' },
+            { id: 'S3', name: 'SQL Optimizer', color: '#10b981', type: 'Market' },
+            { id: 'S4', name: 'Security Guard', color: '#f59e0b', type: 'Import' }
+        ];
+
+        // Particle System for Token Flow
+        class Particle {
+            constructor(startX, startY, targetX, targetY, color, size = 3) {
+                this.x = startX;
+                this.y = startY;
+                this.targetX = targetX;
+                this.targetY = targetY;
+                this.color = color;
+                this.size = size;
+                this.speed = 0.02 + Math.random() * 0.03;
+                this.life = 0;
+            }
+            update() {
+                this.life += this.speed;
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                this.x += dx * 0.1;
+                this.y += dy * 0.1;
+                return this.life < 1;
+            }
+            draw() {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function initCanvas() {
+            canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+            canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        window.addEventListener('resize', initCanvas);
+        initCanvas();
+
+        function log(msg, level = 'info') {
+            const time = new Date().toLocaleTimeString([], { hour12: false, minute: "2-digit", second: "2-digit" });
+            const colors = { info: '#94a3b8', warning: '#fbbf24', success: '#4ade80', debug: '#c084fc' };
+            const entry = document.createElement('div');
+            entry.innerHTML = `<span class="text-gray-600">[${time}]</span> <span style="color:${colors[level]}">${msg}</span>`;
+            debugLogEl.appendChild(entry);
+            debugLogEl.scrollTop = debugLogEl.scrollHeight;
+            
+            // Limit log entries
+            while (debugLogEl.childNodes.length > 50) debugLogEl.removeChild(debugLogEl.firstChild);
+        }
+
+        function toggleSimulation() {
+            if (state.ended) {
+                resetSimulation();
+                startSim();
+            } else if (state.running) {
+                pauseSim();
+            } else {
+                startSim();
+            }
+        }
+
+        function startSim() {
+            state.running = true;
+            state.paused = false;
+            state.ended = false;
+            mainBtn.innerText = '暂停仿真';
+            mainBtn.classList.replace('bg-purple-600', 'bg-amber-600');
+            statusText.innerText = 'PROCESSING';
+            statusText.classList.replace('text-green-400', 'text-amber-400');
+            log('正在初始化 Trae Context 环境...', 'info');
+            requestAnimationFrame(animate);
+        }
+
+        function pauseSim() {
+            state.running = false;
+            state.paused = true;
+            mainBtn.innerText = '继续仿真';
+            mainBtn.classList.replace('bg-amber-600', 'bg-purple-600');
+            statusText.innerText = 'PAUSED';
+            log('仿真已暂停', 'warning');
+        }
+
+        function resetSimulation() {
+            state.running = false;
+            state.paused = false;
+            state.ended = false;
+            state.progress = 0;
+            state.particles = [];
+            mainBtn.innerText = '启动仿真';
+            mainBtn.classList.remove('bg-amber-600');
+            mainBtn.classList.add('bg-purple-600');
+            statusText.innerText = 'IDLE';
+            statusText.classList.replace('text-amber-400', 'text-green-400');
+            contextBar.style.width = '0%';
+            completionOverlay.classList.add('hidden');
+            debugLogEl.innerHTML = '> 等待指令输入...';
+            log('环境已重置', 'info');
+            draw();
+        }
+
+        function applyPreset(index) {
+            const config = JSON.parse(document.getElementById('widget-config').textContent);
+            const preset = config.presets[index];
+            if (preset) {
+                Object.entries(preset.variables).forEach(([key, value]) => {
+                    state.vars[key] = value;
+                    const slider = document.getElementById(key + '-slider');
+                    if (slider) slider.value = value;
+                    const display = document.getElementById(key + '-display');
+                    if (display) {
+                        let unit = config.variables.find(v => v.name === key).unit;
+                        display.innerText = value + unit;
+                    }
+                });
+                resetSimulation();
+                log(`已加载预设: ${preset.name}`, 'debug');
+            }
+        }
+
+        function draw() {
+            const w = canvas.width / window.devicePixelRatio;
+            const h = canvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, w, h);
+
+            // Draw Background Grid
+            ctx.strokeStyle = '#2d2d2d';
+            ctx.lineWidth = 1;
+            for(let x = 0; x < w; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+            for(let y = 0; y < h; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+
+            // Nodes Configuration
+            const nodes = {
+                skillCenter: { x: 100, y: h/2, label: 'Skill Center', color: '#8b5cf6' },
+                context: { x: w/2, y: h/2, label: 'Context Engine', color: '#3b82f6' },
+                llm: { x: w - 100, y: h/2, label: 'LLM Agent', color: '#10b981' }
+            };
+
+            // Draw Connection Paths
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#444';
+            ctx.beginPath();
+            ctx.moveTo(nodes.skillCenter.x, nodes.skillCenter.y);
+            ctx.lineTo(nodes.context.x, nodes.context.y);
+            ctx.lineTo(nodes.llm.x, nodes.llm.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Draw Nodes
+            Object.values(nodes).forEach(node => {
+                ctx.fillStyle = '#1a1a1a';
+                ctx.strokeStyle = node.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(node.x - 40, node.y - 25, 80, 50, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(node.label, node.x, node.y + 5);
+            });
+
+            // Pulse effect for Skill Center if active
+            if (state.running) {
+                const pulse = Math.sin(Date.now() / 200) * 5;
+                ctx.strokeStyle = nodes.skillCenter.color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(nodes.skillCenter.x, nodes.skillCenter.y, 45 + pulse, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // Draw Active Skills around Skill Center
+            const activeCount = Math.ceil(state.vars.skill_activation / 25);
+            for(let i = 0; i < activeCount; i++) {
+                const angle = (Date.now() / 1000) + (i * Math.PI * 2 / activeCount);
+                const skillX = nodes.skillCenter.x + Math.cos(angle) * 70;
+                const skillY = nodes.skillCenter.y + Math.sin(angle) * 70;
+                
+                ctx.fillStyle = skills[i].color;
+                ctx.beginPath();
+                ctx.arc(skillX, skillY, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (state.vars.debugging_visibility > 0.5) {
+                    ctx.fillStyle = '#aaa';
+                    ctx.font = '8px monospace';
+                    ctx.fillText(skills[i].name, skillX, skillY - 12);
+                }
+
+                // Chance to spawn particle
+                if (state.running && Math.random() < 0.1) {
+                    state.particles.push(new Particle(skillX, skillY, nodes.context.x, nodes.context.y, skills[i].color));
+                }
+            }
+
+            // Influence Visualization (Prompt Strength)
+            if (state.running) {
+                ctx.save();
+                ctx.globalAlpha = state.vars.prompt_override_strength * 0.3;
+                ctx.fillStyle = '#8b5cf6';
+                ctx.beginPath();
+                ctx.arc(nodes.context.x, nodes.context.y, 60 + state.vars.prompt_override_strength * 40, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                if (Math.random() < 0.2) {
+                    state.particles.push(new Particle(nodes.context.x, nodes.context.y, nodes.llm.x, nodes.llm.y, '#3b82f6', 4));
+                }
+            }
+
+            // Render Particles
+            state.particles = state.particles.filter(p => {
+                p.draw();
+                return state.running ? p.update() : true;
+            });
+        }
+
+        function animate() {
+            if (!state.running && !state.paused) return;
+
+            if (state.running) {
+                state.progress += 0.2;
+                contextBar.style.width = Math.min(100, state.progress) + '%';
+
+                // Narrative Events
+                if (state.progress > 5 && state.progress < 5.3) log('检测到 Skill Center 活跃技能...', 'info');
+                if (state.progress > 20 && state.progress < 20.3) log('正在构建 LLM Instruction 增强层...', 'debug');
+                if (state.progress > 45 && state.progress < 45.3) log('MCP 协议握手成功: 注入上下文规则', 'success');
+                if (state.progress > 70 && state.progress < 70.3) {
+                    if (state.vars.prompt_override_strength > 0.7) {
+                        log('检测到指令冲突：自动应用优先级规则', 'warning');
+                    } else {
+                        log('正在执行本地技能回调...', 'info');
+                    }
+                }
+
+                if (state.progress >= 100) {
+                    state.running = false;
+                    state.ended = true;
+                    mainBtn.innerText = '重新开始';
+                    mainBtn.classList.replace('bg-amber-600', 'bg-purple-600');
+                    statusText.innerText = 'COMPLETED';
+                    statusText.classList.replace('text-amber-400', 'text-blue-400');
+                    completionOverlay.classList.remove('hidden');
+                    log('技能处理链路已完整执行。', 'success');
+                    return;
+                }
+            }
+
+            draw();
+            if (state.running || state.paused) requestAnimationFrame(animate);
+        }
+
+        // Variable Control Binding
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const varName = e.target.dataset.var;
+                const value = parseFloat(e.target.value);
+                state.vars[varName] = value;
+                
+                const config = JSON.parse(document.getElementById('widget-config').textContent);
+                const unit = config.variables.find(v => v.name === varName).unit;
+                document.getElementById(varName + '-display').innerText = value + unit;
+                
+                if (varName === 'debugging_visibility') {
+                    log(`调试等级调整为: ${value}`, 'debug');
+                }
+                
+                draw();
+            });
+        });
+
+        // Keyboard support
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); toggleSimulation(); }
+            if (e.code === 'KeyR') { resetSimulation(); }
+        });
+
+        // Initial Draw
+        draw();
+
+        // postMessage Listener
+        window.addEventListener('message', function(event) {
+            const { type, target, state: newState, content } = event.data;
+            switch (type) {
+                case 'SET_WIDGET_STATE':
+                    if (newState) {
+                        Object.entries(newState).forEach(([key, value]) => {
+                            const slider = document.getElementById(key + '-slider');
+                            if (slider) {
+                                slider.value = value;
+                                slider.dispatchEvent(new Event('input'));
+                            }
+                        });
+                    }
+                    break;
+                case 'HIGHLIGHT_ELEMENT':
+                    const el = document.querySelector(target);
+                    if (el) {
+                        el.style.outline = '3px solid #8b5cf6';
+                        el.style.animation = 'pulse-highlight 2s infinite';
+                        setTimeout(() => { el.style.outline = ''; el.style.animation = ''; }, 3000);
+                    }
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

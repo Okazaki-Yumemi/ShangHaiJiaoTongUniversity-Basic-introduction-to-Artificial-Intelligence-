@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大模型能力增强方式对比仿真</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        :root {
+            --primary: #8b5cf6;
+            --prompt-color: #60a5fa;
+            --rag-color: #34d399;
+            --ft-color: #fbbf24;
+            --agent-color: #f87171;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f1f5f9;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        canvas {
+            touch-action: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        .control-panel {
+            scrollbar-width: thin;
+            scrollbar-color: #475569 #1e293b;
+        }
+
+        .control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .control-panel::-webkit-scrollbar-thumb {
+            background-color: #475569;
+            border-radius: 3px;
+        }
+
+        input[type=range] {
+            height: 6px;
+            -webkit-appearance: none;
+            background: #334155;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            border: 2px solid #fff;
+        }
+
+        .btn-active {
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+            transform: translateY(-1px);
+        }
+
+        @keyframes pulse-highlight { 
+            0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 
+            50% { outline-color: rgba(139, 92, 246, 0.4); } 
+        }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        
+        .method-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .method-card:hover {
+            background-color: #1e293b;
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="flex flex-col md:flex-row h-screen w-screen overflow-hidden">
+
+    <!-- Embedded Widget Config -->
+    <script type="application/json" id="widget-config">
+    {
+      "type": "simulation",
+      "concept": "Capability_Enhancement_Comparison",
+      "description": "对比 Prompt, RAG, Fine-tuning 和 AI Agent 四种增强大模型能力的技术路径。",
+      "variables": [
+        { "name": "cost", "label": "成本投入", "min": 0, "max": 100, "default": 20, "unit": "%" },
+        { "name": "freshness", "label": "时效性需求", "min": 0, "max": 100, "default": 30, "unit": "%" },
+        { "name": "operability", "label": "操作执行力", "min": 0, "max": 100, "default": 10, "unit": "%" },
+        { "name": "logic_depth", "label": "逻辑深度", "min": 0, "max": 100, "default": 40, "unit": "%" }
+      ],
+      "presets": [
+        { "name": "初级问答 (Prompt)", "variables": { "cost": 5, "freshness": 10, "operability": 5, "logic_depth": 20 } },
+        { "name": "企业知识库 (RAG)", "variables": { "cost": 40, "freshness": 90, "operability": 15, "logic_depth": 30 } },
+        { "name": "垂直领域专家 (FT)", "variables": { "cost": 85, "freshness": 10, "operability": 30, "logic_depth": 75 } },
+        { "name": "自动驾驶员工 (Agent)", "variables": { "cost": 70, "freshness": 80, "operability": 95, "logic_depth": 90 } }
+      ]
+    }
+    </script>
+
+    <!-- Sidebar / Control Panel -->
+    <div id="controls" class="w-full md:w-80 shrink-0 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-700 flex flex-col z-10 overflow-hidden">
+        <div class="p-4 border-b border-slate-800">
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <span class="w-2 h-6 bg-violet-500 rounded-full"></span>
+                LLM 能力增强对比
+            </h1>
+            <p class="text-xs text-slate-400 mt-1 uppercase tracking-wider mono">Capability Comparison Sim</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto control-panel p-4 space-y-6">
+            <!-- Requirement Sliders -->
+            <div class="space-y-4">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">业务需求指标</h2>
+                
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs">
+                        <label class="text-slate-400">投入成本 (Cost)</label>
+                        <span id="cost-display" class="mono text-violet-400">20%</span>
+                    </div>
+                    <input type="range" id="cost-slider" data-var="cost" min="0" max="100" value="20" class="w-full">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs">
+                        <label class="text-slate-400">信息时效 (Freshness)</label>
+                        <span id="freshness-display" class="mono text-emerald-400">30%</span>
+                    </div>
+                    <input type="range" id="freshness-slider" data-var="freshness" min="0" max="100" value="30" class="w-full">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs">
+                        <label class="text-slate-400">操作执行 (Operability)</label>
+                        <span id="operability-display" class="mono text-red-400">10%</span>
+                    </div>
+                    <input type="range" id="operability-slider" data-var="operability" min="0" max="100" value="10" class="w-full">
+                </div>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs">
+                        <label class="text-slate-400">逻辑深度 (Logic)</label>
+                        <span id="logic_depth-display" class="mono text-amber-400">40%</span>
+                    </div>
+                    <input type="range" id="logic_depth-slider" data-var="logic_depth" min="0" max="100" value="40" class="w-full">
+                </div>
+            </div>
+
+            <!-- Presets -->
+            <div class="space-y-3">
+                <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-widest">典型应用场景</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="applyPreset(0)" class="text-[10px] p-2 bg-slate-800 rounded border border-slate-700 hover:border-violet-500 transition-colors">初级问答</button>
+                    <button onclick="applyPreset(1)" class="text-[10px] p-2 bg-slate-800 rounded border border-slate-700 hover:border-emerald-500 transition-colors">企业知识库</button>
+                    <button onclick="applyPreset(2)" class="text-[10px] p-2 bg-slate-800 rounded border border-slate-700 hover:border-amber-500 transition-colors">垂直领域专家</button>
+                    <button onclick="applyPreset(3)" class="text-[10px] p-2 bg-slate-800 rounded border border-slate-700 hover:border-red-500 transition-colors">智能体闭环</button>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="bg-slate-950/50 p-3 rounded-lg border border-slate-800 space-y-2">
+                <h3 class="text-[10px] text-slate-500 uppercase font-bold">图例说明</h3>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-2 h-2 rounded-full" style="background:var(--prompt-color)"></span>
+                    <span>Prompt Engineering</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-2 h-2 rounded-full" style="background:var(--rag-color)"></span>
+                    <span>RAG (检索增强)</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-2 h-2 rounded-full" style="background:var(--ft-color)"></span>
+                    <span>Fine-tuning (微调)</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="w-2 h-2 rounded-full" style="background:var(--agent-color)"></span>
+                    <span>AI Agent (智能体)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 bg-slate-900 border-t border-slate-800 flex gap-2">
+            <button id="main-btn" onclick="toggleSimulation()" class="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold transition-all active:scale-95 touch-manipulation">
+                启动仿真
+            </button>
+            <button id="reset-btn" onclick="resetSimulation()" class="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-all touch-manipulation">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Canvas Area -->
+    <div class="flex-1 relative flex flex-col bg-slate-950 overflow-hidden">
+        <!-- Overlay Stats -->
+        <div class="absolute top-4 left-4 z-20 pointer-events-none">
+            <div id="status-badge" class="px-2 py-1 bg-slate-800/80 rounded border border-slate-700 text-[10px] text-slate-400 mono">
+                IDLE
+            </div>
+        </div>
+        
+        <div class="absolute top-4 right-4 z-20 flex flex-col items-end gap-2 pointer-events-none">
+            <div id="match-score" class="text-2xl font-black italic text-violet-500 mono opacity-0 transition-opacity duration-500">
+                MATCH: 85%
+            </div>
+        </div>
+
+        <div class="flex-1 flex items-center justify-center p-4">
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <!-- Info HUD -->
+        <div id="hud" class="h-24 bg-slate-900/80 border-t border-slate-800 flex items-center justify-around px-4 backdrop-blur-sm">
+            <div class="text-center">
+                <div class="text-[10px] text-slate-500 uppercase mb-1">综合覆盖率</div>
+                <div id="coverage-val" class="text-xl font-bold mono">0.0%</div>
+            </div>
+            <div class="text-center border-x border-slate-800 px-8">
+                <div class="text-[10px] text-slate-500 uppercase mb-1">最优方案</div>
+                <div id="best-method" class="text-xl font-bold text-violet-400">---</div>
+            </div>
+            <div class="text-center">
+                <div class="text-[10px] text-slate-500 uppercase mb-1">执行状态</div>
+                <div id="exec-status" class="text-xl font-bold text-slate-600">等待启动</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const mainBtn = document.getElementById('main-btn');
+        
+        // Simulation State
+        let state = {
+            running: false,
+            ended: false,
+            time: 0,
+            rotation: 0,
+            transition: 0, // For intro animation
+            variables: {
+                cost: 20,
+                freshness: 30,
+                operability: 10,
+                logic_depth: 40
+            }
+        };
+
+        // Static Method Data (Norm: 0-1)
+        const methods = [
+            { id: 'prompt', name: 'Prompt', color: '#60a5fa', stats: { cost: 0.1, freshness: 0.3, operability: 0.1, logic_depth: 0.2 } },
+            { id: 'rag', name: 'RAG', color: '#34d399', stats: { cost: 0.4, freshness: 0.95, operability: 0.2, logic_depth: 0.4 } },
+            { id: 'ft', name: 'Fine-tune', color: '#fbbf24', stats: { cost: 0.95, freshness: 0.1, operability: 0.3, logic_depth: 0.8 } },
+            { id: 'agent', name: 'AI Agent', color: '#f87171', stats: { cost: 0.7, freshness: 0.8, operability: 0.95, logic_depth: 0.95 } }
+        ];
+
+        // Init
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            // Listen for slider changes
+            document.querySelectorAll('input[type=range]').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const key = e.target.dataset.var;
+                    const val = parseInt(e.target.value);
+                    state.variables[key] = val;
+                    document.getElementById(`${key}-display`).innerText = val + '%';
+                    updateAnalysis();
+                });
+            });
+
+            requestAnimationFrame(loop);
+        }
+
+        function resize() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth * window.devicePixelRatio;
+            canvas.height = container.clientHeight * window.devicePixelRatio;
+            canvas.style.width = container.clientWidth + 'px';
+            canvas.style.height = container.clientHeight + 'px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        function toggleSimulation() {
+            if (state.ended) {
+                resetSimulation();
+                setTimeout(() => startSimulation(), 100);
+            } else if (state.running) {
+                pauseSimulation();
+            } else {
+                startSimulation();
+            }
+        }
+
+        function startSimulation() {
+            state.running = true;
+            state.ended = false;
+            mainBtn.innerText = '暂停仿真';
+            mainBtn.classList.add('btn-active');
+            document.getElementById('status-badge').innerText = 'RUNNING';
+            document.getElementById('status-badge').classList.replace('text-slate-400', 'text-violet-400');
+            document.getElementById('exec-status').innerText = '正在计算...';
+            document.getElementById('exec-status').classList.replace('text-slate-600', 'text-violet-400');
+            document.getElementById('match-score').style.opacity = '1';
+        }
+
+        function pauseSimulation() {
+            state.running = false;
+            mainBtn.innerText = '继续仿真';
+            mainBtn.classList.remove('btn-active');
+            document.getElementById('status-badge').innerText = 'PAUSED';
+            document.getElementById('exec-status').innerText = '已暂停';
+        }
+
+        function resetSimulation() {
+            state.running = false;
+            state.ended = false;
+            state.time = 0;
+            state.transition = 0;
+            mainBtn.innerText = '启动仿真';
+            mainBtn.classList.remove('btn-active');
+            document.getElementById('status-badge').innerText = 'IDLE';
+            document.getElementById('status-badge').classList.replace('text-violet-400', 'text-slate-400');
+            document.getElementById('exec-status').innerText = '等待启动';
+            document.getElementById('exec-status').classList.replace('text-violet-400', 'text-slate-600');
+            document.getElementById('match-score').style.opacity = '0';
+            updateAnalysis();
+        }
+
+        function applyPreset(index) {
+            const config = JSON.parse(document.getElementById('widget-config').textContent);
+            const preset = config.presets[index];
+            Object.entries(preset.variables).forEach(([key, val]) => {
+                const slider = document.getElementById(`${key}-slider`);
+                slider.value = val;
+                state.variables[key] = val;
+                document.getElementById(`${key}-display`).innerText = val + '%';
+            });
+            resetSimulation();
+            startSimulation();
+        }
+
+        function updateAnalysis() {
+            // Find best match
+            let maxScore = -1;
+            let bestName = '---';
+            
+            const user = {
+                cost: state.variables.cost / 100,
+                freshness: state.variables.freshness / 100,
+                operability: state.variables.operability / 100,
+                logic_depth: state.variables.logic_depth / 100
+            };
+
+            methods.forEach(m => {
+                // Score = inverse of normalized distance for simple heuristic
+                let dist = 0;
+                dist += Math.pow(Math.max(0, user.cost - m.stats.cost), 2);
+                dist += Math.pow(Math.max(0, user.freshness - m.stats.freshness), 2);
+                dist += Math.pow(Math.max(0, user.operability - m.stats.operability), 2);
+                dist += Math.pow(Math.max(0, user.logic_depth - m.stats.logic_depth), 2);
+                
+                const score = 100 * (1 / (1 + dist));
+                if (score > maxScore) {
+                    maxScore = score;
+                    bestName = m.name;
+                }
+            });
+
+            document.getElementById('match-score').innerText = `MATCH: ${maxScore.toFixed(1)}%`;
+            document.getElementById('coverage-val').innerText = maxScore.toFixed(1) + '%';
+            document.getElementById('best-method').innerText = bestName;
+            document.getElementById('best-method').style.color = methods.find(m => m.name === bestName)?.color || '#8b5cf6';
+        }
+
+        function drawRadar(centerX, centerY, radius) {
+            const axes = ['成本', '时效性', '操作性', '逻辑深度'];
+            const angles = [0, Math.PI / 2, Math.PI, Math.PI * 3/2];
+
+            // 1. Draw Web
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+            for (let i = 1; i <= 5; i++) {
+                ctx.beginPath();
+                const r = (radius / 5) * i;
+                for (let a = 0; a <= 4; a++) {
+                    const angle = angles[a % 4];
+                    const x = centerX + Math.cos(angle) * r;
+                    const y = centerY + Math.sin(angle) * r;
+                    if (a === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
+
+            // 2. Draw Axes
+            angles.forEach((angle, i) => {
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+
+                // Labels
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '12px Inter';
+                ctx.textAlign = 'center';
+                const labelX = centerX + Math.cos(angle) * (radius + 30);
+                const labelY = centerY + Math.sin(angle) * (radius + 20);
+                ctx.fillText(axes[i], labelX, labelY);
+            });
+
+            // 3. Draw User Requirement Area (Dashed)
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const uStats = [
+                state.variables.cost / 100,
+                state.variables.freshness / 100,
+                state.variables.operability / 100,
+                state.variables.logic_depth / 100
+            ];
+            uStats.forEach((s, i) => {
+                const r = s * radius;
+                const x = centerX + Math.cos(angles[i]) * r;
+                const y = centerY + Math.sin(angles[i]) * r;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 4. Draw Method Areas (Animated)
+            methods.forEach((m, idx) => {
+                if (state.transition < (idx + 1) * 0.2 && !state.running) return;
+                
+                const stats = [m.stats.cost, m.stats.freshness, m.stats.operability, m.stats.logic_depth];
+                const alpha = state.running ? 0.3 : 0.2;
+                
+                ctx.fillStyle = m.color + '22';
+                ctx.strokeStyle = m.color;
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                stats.forEach((s, i) => {
+                    const r = s * radius * Math.min(1, state.transition * 2 - idx * 0.3);
+                    const x = centerX + Math.cos(angles[i]) * r;
+                    const y = centerY + Math.sin(angles[i]) * r;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+                ctx.stroke();
+                
+                // Add "Scanning" Pulse if running
+                if (state.running) {
+                    const pulse = (Math.sin(state.time * 5 + idx) + 1) / 2;
+                    ctx.fillStyle = m.color + Math.floor(pulse * 30).toString(16);
+                    ctx.fill();
+                }
+            });
+
+            // 5. Rotating Logic Indicators (Data Pulse)
+            if (state.running) {
+                state.rotation += 0.02;
+                const dots = 12;
+                for(let i=0; i<dots; i++) {
+                    const angle = state.rotation + (i * Math.PI * 2 / dots);
+                    const orbit = radius * 0.8;
+                    const x = centerX + Math.cos(angle) * orbit;
+                    const y = centerY + Math.sin(angle) * orbit;
+                    const size = 2 + Math.sin(state.time * 3 + i) * 2;
+                    
+                    ctx.fillStyle = 'rgba(139, 92, 246, 0.5)';
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function loop() {
+            const w = canvas.width / window.devicePixelRatio;
+            const h = canvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, w, h);
+
+            if (state.running) {
+                state.time += 0.016;
+                state.transition = Math.min(1, state.transition + 0.02);
+                
+                if (state.time > 5) { // Auto-end after 5 seconds of "Calculation"
+                    state.running = false;
+                    state.ended = true;
+                    mainBtn.innerText = '重新开始';
+                    document.getElementById('status-badge').innerText = 'COMPLETED';
+                    document.getElementById('exec-status').innerText = '方案就绪';
+                    document.getElementById('exec-status').classList.replace('text-violet-400', 'text-emerald-400');
+                }
+            } else if (!state.ended) {
+                state.transition = Math.min(1, state.transition + 0.01);
+            }
+
+            const centerX = w / 2;
+            const centerY = h / 2 - 20;
+            const radius = Math.min(w, h) * 0.3;
+
+            drawRadar(centerX, centerY, radius);
+
+            requestAnimationFrame(loop);
+        }
+
+        // --- Teacher Action Handlers ---
+        window.addEventListener('message', function(event) {
+            const { type, target, state: newState, content } = event.data;
+            switch (type) {
+                case 'SET_WIDGET_STATE':
+                    if (newState) {
+                        Object.entries(newState).forEach(([key, value]) => {
+                            const slider = document.getElementById(key + '-slider');
+                            if (slider) {
+                                slider.value = value;
+                                slider.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        });
+                    }
+                    break;
+                case 'HIGHLIGHT_ELEMENT':
+                    const highlightEl = document.querySelector(target);
+                    if (highlightEl) {
+                        highlightEl.style.outline = '3px solid rgba(139, 92, 246, 0.8)';
+                        highlightEl.style.outlineOffset = '4px';
+                        highlightEl.style.animation = 'pulse-highlight 2s infinite';
+                        setTimeout(() => {
+                            highlightEl.style.outline = '';
+                            highlightEl.style.animation = '';
+                        }, 3000);
+                    }
+                    break;
+                case 'ANNOTATE_ELEMENT':
+                    const annotateEl = document.querySelector(target);
+                    if (annotateEl && content) {
+                        const rect = annotateEl.getBoundingClientRect();
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'teacher-annotation';
+                        tooltip.style.cssText = `position:fixed; top:${rect.top - 40}px; left:${rect.left}px; background:rgba(139,92,246,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:14px; z-index:1000; animation:fadeIn 0.3s; pointer-events:none;`;
+                        tooltip.textContent = content;
+                        document.body.appendChild(tooltip);
+                        setTimeout(() => tooltip.remove(), 4000);
+                    }
+                    break;
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

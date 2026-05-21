@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1800" height="720" viewBox="0 0 1800 720" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1800" height="720" fill="#F5F1EA"/>
+  <text x="90" y="74" font-family="Arial, Microsoft YaHei" font-size="34" font-weight="700" fill="#2B2622">
+    LLM智能体研究三面板图：架构、评测与安全
+  </text>
+
+  <rect x="70" y="110" width="520" height="540" rx="22" fill="#FFFDFC" stroke="#D4C8BA" stroke-width="2"/>
+  <text x="100" y="155" font-family="Arial, Microsoft YaHei" font-size="26" font-weight="700" fill="#9C3D2B">A. 统一架构</text>
+  <text x="100" y="190" font-family="Arial, Microsoft YaHei" font-size="16" fill="#5A534B">基于 Survey 论文归纳的典型 agent 闭环</text>
+  <rect x="105" y="235" width="110" height="60" rx="14" fill="#1F4E5F"/>
+  <rect x="245" y="235" width="110" height="60" rx="14" fill="#C07A3A"/>
+  <rect x="385" y="235" width="110" height="60" rx="14" fill="#6D8B74"/>
+  <rect x="245" y="345" width="110" height="60" rx="14" fill="#A34B39"/>
+  <text x="160" y="272" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="19" font-weight="700" fill="#FFFFFF">感知</text>
+  <text x="300" y="272" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="19" font-weight="700" fill="#FFFFFF">规划</text>
+  <text x="440" y="272" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="19" font-weight="700" fill="#FFFFFF">记忆</text>
+  <text x="300" y="382" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="19" font-weight="700" fill="#FFFFFF">行动</text>
+  <line x1="215" y1="265" x2="245" y2="265" stroke="#5A534B" stroke-width="3"/>
+  <line x1="355" y1="265" x2="385" y2="265" stroke="#5A534B" stroke-width="3"/>
+  <line x1="300" y1="295" x2="300" y2="345" stroke="#5A534B" stroke-width="3"/>
+  <path d="M300 405 C300 470, 160 470, 160 295" fill="none" stroke="#5A534B" stroke-width="3"/>
+  <text x="105" y="485" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">结论：</text>
+  <text x="105" y="515" font-family="Arial, Microsoft YaHei" font-size="17" fill="#2B2622">智能体不是单一模型，而是“感知-规划-记忆-行动”</text>
+  <text x="105" y="543" font-family="Arial, Microsoft YaHei" font-size="17" fill="#2B2622">的系统工程；难点已从生成文本转向系统协同。</text>
+
+  <rect x="640" y="110" width="520" height="540" rx="22" fill="#FFFDFC" stroke="#D4C8BA" stroke-width="2"/>
+  <text x="670" y="155" font-family="Arial, Microsoft YaHei" font-size="26" font-weight="700" fill="#9C3D2B">B. 真实环境评测</text>
+  <text x="670" y="190" font-family="Arial, Microsoft YaHei" font-size="16" fill="#5A534B">OSWorld：369 个真实计算机任务</text>
+  <line x1="715" y1="510" x2="1080" y2="510" stroke="#7C736A" stroke-width="2"/>
+  <line x1="715" y1="250" x2="715" y2="510" stroke="#7C736A" stroke-width="2"/>
+  <rect x="780" y="250" width="92" height="260" fill="#2F5E6D"/>
+  <rect x="930" y="466" width="92" height="44" fill="#C87F45"/>
+  <text x="826" y="236" text-anchor="middle" font-family="Arial" font-size="16" fill="#2B2622">72.36%</text>
+  <text x="976" y="452" text-anchor="middle" font-family="Arial" font-size="16" fill="#2B2622">12.24%</text>
+  <text x="826" y="536" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">人类</text>
+  <text x="976" y="536" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">最佳模型</text>
+  <text x="670" y="585" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">结论：</text>
+  <text x="670" y="615" font-family="Arial, Microsoft YaHei" font-size="17" fill="#2B2622">真实 GUI 操作远比静态 benchmark 更难，能力短板</text>
+  <text x="670" y="643" font-family="Arial, Microsoft YaHei" font-size="17" fill="#2B2622">集中在界面定位、跨应用流程和操作经验。</text>
+
+  <rect x="1210" y="110" width="520" height="540" rx="22" fill="#FFFDFC" stroke="#D4C8BA" stroke-width="2"/>
+  <text x="1240" y="155" font-family="Arial, Microsoft YaHei" font-size="26" font-weight="700" fill="#9C3D2B">C. 安全影响</text>
+  <text x="1240" y="190" font-family="Arial, Microsoft YaHei" font-size="16" fill="#5A534B">多代理协作可把 exploit 能力拉高到 4.3x</text>
+  <line x1="1285" y1="510" x2="1650" y2="510" stroke="#7C736A" stroke-width="2"/>
+  <line x1="1285" y1="250" x2="1285" y2="510" stroke="#7C736A" stroke-width="2"/>
+  <rect x="1350" y="450" width="92" height="60" fill="#8A9B82"/>
+  <rect x="1500" y="252" width="92" height="258" fill="#A34B39"/>
+  <text x="1396" y="436" text-anchor="middle" font-family="Arial" font-size="16" fill="#2B2622">1.0x</text>
+  <text x="1546" y="238" text-anchor="middle" font-family="Arial" font-size="16" fill="#2B2622">4.3x</text>
+  <text x="1396" y="536" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">先前框架</text>
+  <text x="1546" y="536" text-anchor="middle" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">HPTSA</text>
+  <text x="1240" y="585" font-family="Arial, Microsoft YaHei" font-size="18" font-weight="700" fill="#2B2622">结论：</text>
+  <text x="1240" y="615" font-family="Arial, Microsoft YaHei" font-size="17" fill="#2B2622">智能体协作不只提高任务完成率，也提高真实攻击链</text>
+  <text x="1240" y="643" font-family="Arial, Microsoft YaHei" font-size="17" fill="#2B2622">的可执行性，安全治理必须与能力研究同步。</text>
+</svg>

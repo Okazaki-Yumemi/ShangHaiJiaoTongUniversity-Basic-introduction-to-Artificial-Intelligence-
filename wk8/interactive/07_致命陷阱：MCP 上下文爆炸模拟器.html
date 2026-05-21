@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Window Overflow Simulation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-highlight { 0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 50% { outline-color: rgba(139, 92, 246, 0.4); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake-element { animation: shake 0.2s ease-in-out infinite; }
+        .token-block { transition: all 0.3s ease; }
+        canvas { touch-action: none; }
+        .control-panel { scrollbar-width: thin; }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col md:flex-row overflow-hidden">
+
+    <!-- Embedded Widget Configuration -->
+    <script type="application/json" id="widget-config">
+    {
+      "type": "simulation",
+      "concept": "context_window_overflow",
+      "description": "展示加载 MCP 资源导致 Token 溢出的过程及其后果",
+      "variables": [
+        { "name": "resource_count", "label": "MCP 资源数量", "min": 1, "max": 20, "default": 5, "unit": "个" },
+        { "name": "chunk_size", "label": "单个资源大小", "min": 500, "max": 5000, "default": 2000, "unit": "Tokens" },
+        { "name": "token_limit", "label": "上下文窗口上限", "min": 4000, "max": 32000, "default": 12000, "unit": "Tokens" }
+      ],
+      "presets": [
+        { "name": "标准配置 (正常)", "variables": { "resource_count": 3, "chunk_size": 1000, "token_limit": 12000 } },
+        { "name": "资源过载 (溢出)", "variables": { "resource_count": 15, "chunk_size": 2500, "token_limit": 8000 } }
+      ]
+    }
+    </script>
+
+    <!-- Sidebar / Control Panel -->
+    <div id="controls" class="w-full md:w-80 bg-slate-800 p-6 flex flex-col gap-6 overflow-y-auto max-h-[45vh] md:max-h-screen border-b md:border-b-0 md:border-r border-slate-700 z-10 shadow-xl">
+        <div>
+            <h1 class="text-xl font-bold text-blue-400 mb-2">Context Window 模拟器</h1>
+            <p class="text-xs text-slate-400">观察 MCP 资源如何消耗 Token 导致“遗忘”现象。</p>
+        </div>
+
+        <!-- Sliders -->
+        <div class="space-y-4">
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <label class="text-sm font-medium">MCP 资源数量</label>
+                    <span id="resource_count-display" class="text-blue-400 font-mono">5</span>
+                </div>
+                <input type="range" id="resource_count-slider" data-var="resource_count" min="1" max="20" value="5" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <label class="text-sm font-medium">单个资源大小 (Tokens)</label>
+                    <span id="chunk_size-display" class="text-blue-400 font-mono">2000</span>
+                </div>
+                <input type="range" id="chunk_size-slider" data-var="chunk_size" min="500" max="5000" step="100" value="2000" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+            </div>
+
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <label class="text-sm font-medium">Context Window 上限</label>
+                    <span id="token_limit-display" class="text-blue-400 font-mono">12000</span>
+                </div>
+                <input type="range" id="token_limit-slider" data-var="token_limit" min="4000" max="32000" step="1000" value="12000" class="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500">
+            </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="grid grid-cols-1 gap-2">
+            <button onclick="applyPreset(0)" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded border border-slate-600 transition">加载：标准配置</button>
+            <button onclick="applyPreset(1)" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded border border-slate-600 transition text-orange-300">加载：极端过载</button>
+        </div>
+
+        <!-- Main Controls -->
+        <div class="flex flex-col gap-2 mt-auto">
+            <button id="main-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-lg font-bold transition shadow-lg flex items-center justify-center gap-2">
+                <span>启动模拟</span>
+            </button>
+            <button id="reset-btn" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">
+                重置
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Simulation Area -->
+    <div class="flex-1 relative flex flex-col bg-slate-900 overflow-hidden p-4">
+        <!-- Status HUD -->
+        <div class="absolute top-6 left-6 right-6 flex flex-wrap gap-4 z-20 pointer-events-none">
+            <div class="bg-slate-800/80 backdrop-blur p-3 rounded-lg border border-slate-700 shadow-lg">
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">当前总消耗</div>
+                <div id="current-tokens" class="text-2xl font-mono font-bold text-white">0</div>
+            </div>
+            <div class="bg-slate-800/80 backdrop-blur p-3 rounded-lg border border-slate-700 shadow-lg">
+                <div class="text-[10px] uppercase text-slate-400 tracking-wider">窗口利用率</div>
+                <div id="usage-percent" class="text-2xl font-mono font-bold text-blue-400">0%</div>
+            </div>
+            <div id="status-tag" class="hidden bg-red-900/80 backdrop-blur p-3 rounded-lg border border-red-500 shadow-lg items-center gap-2 animate-bounce">
+                <span class="w-2 h-2 bg-red-500 rounded-full"></span>
+                <span class="text-sm font-bold text-red-100">CONTEXT OVERFLOW!</span>
+            </div>
+        </div>
+
+        <!-- Instructions Info -->
+        <div id="info-overlay" class="absolute bottom-6 right-6 max-w-xs bg-blue-900/40 backdrop-blur p-4 rounded-xl border border-blue-500/30 text-xs leading-relaxed z-20 transition-opacity duration-500">
+            <h4 class="font-bold text-blue-300 mb-1 italic">提示：</h4>
+            底部的<span class="text-yellow-400 font-bold">金色方块</span>代表您的“初始任务指令”。当 Token 溢出时，它们会最先被移出处理窗口。
+        </div>
+
+        <!-- Visualization Canvas -->
+        <div class="flex-1 w-full relative">
+            <canvas id="sim-canvas" class="w-full h-full"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('sim-canvas');
+        const ctx = canvas.getContext('2d');
+        const mainBtn = document.getElementById('main-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const currentTokensDisplay = document.getElementById('current-tokens');
+        const usagePercentDisplay = document.getElementById('usage-percent');
+        const statusTag = document.getElementById('status-tag');
+
+        // State variables
+        let state = {
+            running: false,
+            ended: false,
+            paused: false,
+            currentTokens: 0,
+            resources: [], // {id, tokens, color, y}
+            systemPrompt: { tokens: 1500, label: "初始系统指令 (Task Goal)", color: "#fbbf24", y: 0 },
+            scrollOffset: 0,
+            overflowRatio: 0,
+            frame: 0
+        };
+
+        let vars = {
+            resource_count: 5,
+            chunk_size: 2000,
+            token_limit: 12000
+        };
+
+        // Initialize
+        function init() {
+            window.addEventListener('resize', resize);
+            resize();
+            
+            // Set up UI listeners
+            document.querySelectorAll('input[type="range"]').forEach(slider => {
+                slider.addEventListener('input', (e) => {
+                    const key = e.target.getAttribute('data-var');
+                    vars[key] = parseInt(e.target.value);
+                    document.getElementById(key + '-display').textContent = vars[key].toLocaleString();
+                    if (!state.running) resetSimulation();
+                });
+            });
+
+            mainBtn.addEventListener('click', handleMainButton);
+            resetBtn.addEventListener('click', resetSimulation);
+            
+            resetSimulation();
+            animate();
+        }
+
+        function resize() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        function handleMainButton() {
+            if (state.ended) {
+                resetSimulation();
+                state.running = true;
+                mainBtn.innerHTML = '<span>暂停模拟</span>';
+            } else if (state.running) {
+                state.running = false;
+                mainBtn.innerHTML = '<span>继续模拟</span>';
+            } else {
+                state.running = true;
+                mainBtn.innerHTML = '<span>暂停模拟</span>';
+            }
+        }
+
+        function resetSimulation() {
+            state.running = false;
+            state.ended = false;
+            state.currentTokens = state.systemPrompt.tokens;
+            state.resources = [];
+            state.scrollOffset = 0;
+            state.overflowRatio = 0;
+            state.frame = 0;
+            statusTag.classList.add('hidden');
+            mainBtn.innerHTML = '<span>启动模拟</span>';
+            updateHUD();
+        }
+
+        function applyPreset(index) {
+            const config = JSON.parse(document.getElementById('widget-config').textContent);
+            const preset = config.presets[index];
+            Object.entries(preset.variables).forEach(([key, value]) => {
+                vars[key] = value;
+                const slider = document.getElementById(key + '-slider');
+                slider.value = value;
+                document.getElementById(key + '-display').textContent = value.toLocaleString();
+            });
+            resetSimulation();
+        }
+
+        function updateHUD() {
+            currentTokensDisplay.textContent = Math.floor(state.currentTokens).toLocaleString();
+            const percent = Math.min(100, (state.currentTokens / vars.token_limit) * 100);
+            usagePercentDisplay.textContent = percent.toFixed(1) + '%';
+            usagePercentDisplay.style.color = percent > 90 ? '#ef4444' : (percent > 70 ? '#f59e0b' : '#60a5fa');
+            
+            if (state.currentTokens > vars.token_limit) {
+                statusTag.classList.remove('hidden');
+            } else {
+                statusTag.classList.add('hidden');
+            }
+        }
+
+        function animate() {
+            const w = canvas.width / window.devicePixelRatio;
+            const h = canvas.height / window.devicePixelRatio;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Simulation Logic
+            if (state.running && !state.ended) {
+                state.frame++;
+                
+                // Gradually add resources
+                if (state.frame % 40 === 0 && state.resources.length < vars.resource_count) {
+                    const resourceId = state.resources.length + 1;
+                    state.resources.push({
+                        id: resourceId,
+                        tokens: vars.chunk_size,
+                        label: `MCP Resource #${resourceId}`,
+                        color: `hsl(${210 + resourceId * 10}, 70%, 50%)`,
+                        addedAt: state.frame
+                    });
+                }
+
+                // Smoothly update current token count
+                const targetTokens = state.systemPrompt.tokens + (state.resources.length * vars.chunk_size);
+                if (state.currentTokens < targetTokens) {
+                    state.currentTokens += vars.chunk_size / 40;
+                }
+                
+                updateHUD();
+
+                if (state.resources.length >= vars.resource_count && state.currentTokens >= targetTokens) {
+                    state.ended = true;
+                    mainBtn.innerHTML = '<span>重新开始</span>';
+                }
+            }
+
+            // Drawing
+            const boxWidth = Math.min(w * 0.8, 400);
+            const boxX = (w - boxWidth) / 2;
+            const boxHeight = h * 0.6;
+            const boxY = (h - boxHeight) / 2 + 20;
+
+            // 1. Draw "Context Window" Box
+            ctx.strokeStyle = state.currentTokens > vars.token_limit ? '#ef4444' : '#475569';
+            ctx.lineWidth = 4;
+            if (state.currentTokens > vars.token_limit) {
+                ctx.setLineDash([5, 5]);
+            } else {
+                ctx.setLineDash([]);
+            }
+            ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+            ctx.setLineDash([]);
+
+            // Labels
+            ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillText('CONTEXT WINDOW BOUNDARY', boxX, boxY - 10);
+            ctx.textAlign = 'right';
+            ctx.fillText(`${vars.token_limit.toLocaleString()} Tokens MAX`, boxX + boxWidth, boxY - 10);
+            ctx.textAlign = 'left';
+
+            // Clipping region for inner tokens
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(boxX, boxY, boxWidth, boxHeight);
+            ctx.clip();
+
+            // Calculate scaling: 1 pixel height = N tokens
+            const pixelsPerToken = boxHeight / vars.token_limit;
+            
+            // Layout all blocks (System Prompt + Resources)
+            let currentY = boxY + boxHeight; // Start from bottom
+            
+            // The scroll offset kicks in when overflow happens
+            if (state.currentTokens > vars.token_limit) {
+                state.scrollOffset = (state.currentTokens - vars.token_limit) * pixelsPerToken;
+            }
+            
+            currentY += state.scrollOffset;
+
+            // Draw System Prompt (Bottom-most)
+            const spHeight = state.systemPrompt.tokens * pixelsPerToken;
+            currentY -= spHeight;
+            drawBlock(boxX + 5, currentY, boxWidth - 10, spHeight, state.systemPrompt.label, state.systemPrompt.color, currentY < boxY);
+
+            // Draw Resources
+            state.resources.forEach(res => {
+                const rHeight = res.tokens * pixelsPerToken;
+                currentY -= rHeight;
+                drawBlock(boxX + 5, currentY, boxWidth - 10, rHeight, res.label, res.color, currentY < boxY);
+            });
+
+            ctx.restore();
+
+            // Draw current filling progress line
+            if (state.running || state.ended) {
+                const fillY = boxY + boxHeight - (state.currentTokens * pixelsPerToken) + state.scrollOffset;
+                ctx.beginPath();
+                ctx.moveTo(boxX - 20, fillY);
+                ctx.lineTo(boxX + boxWidth + 20, fillY);
+                ctx.strokeStyle = '#60a5fa';
+                ctx.setLineDash([2, 2]);
+                ctx.stroke();
+                ctx.fillStyle = '#60a5fa';
+                ctx.font = '10px monospace';
+                ctx.fillText('ENTRY POINT', boxX + boxWidth + 25, fillY + 3);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function drawBlock(x, y, w, h, label, color, isLost) {
+            // Draw block body
+            ctx.globalAlpha = isLost ? 0.3 : 1.0;
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, w, h - 2);
+            
+            // Draw label
+            ctx.fillStyle = isLost ? '#ef4444' : '#ffffff';
+            ctx.font = '10px sans-serif';
+            if (h > 15) {
+                const txt = isLost ? `[LOST] ${label}` : label;
+                ctx.fillText(txt, x + 10, y + 15);
+            }
+
+            // If lost, show some "glitch" dots
+            if (isLost) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillRect(x + Math.random()*w, y + Math.random()*h, 2, 2);
+                }
+            }
+            
+            ctx.globalAlpha = 1.0;
+        }
+
+        // --- Teacher Action Listeners ---
+        window.addEventListener('message', function(event) {
+            const { type, target, state: newState, content } = event.data;
+
+            switch (type) {
+                case 'SET_WIDGET_STATE':
+                    if (newState) {
+                        Object.entries(newState).forEach(([key, value]) => {
+                            const slider = document.getElementById(key + '-slider');
+                            if (slider) {
+                                slider.value = value;
+                                slider.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                        });
+                    }
+                    break;
+
+                case 'HIGHLIGHT_ELEMENT':
+                    const highlightEl = document.querySelector(target);
+                    if (highlightEl) {
+                        highlightEl.style.outline = '3px solid rgba(139, 92, 246, 0.8)';
+                        highlightEl.style.outlineOffset = '4px';
+                        highlightEl.style.animation = 'pulse-highlight 2s infinite';
+                        setTimeout(() => {
+                            highlightEl.style.outline = '';
+                            highlightEl.style.animation = '';
+                        }, 3000);
+                    }
+                    break;
+
+                case 'ANNOTATE_ELEMENT':
+                    const annotateEl = document.querySelector(target);
+                    if (annotateEl && content) {
+                        const rect = annotateEl.getBoundingClientRect();
+                        const tooltip = document.createElement('div');
+                        tooltip.className = 'teacher-annotation';
+                        tooltip.style.cssText = `position:fixed; top:${rect.top - 40}px; left:${rect.left}px; background:rgba(139,92,246,0.95); color:white; padding:8px 12px; border-radius:8px; font-size:14px; z-index:1000; animation:fadeIn 0.3s; pointer-events:none;`;
+                        tooltip.textContent = content;
+                        document.body.appendChild(tooltip);
+                        setTimeout(() => tooltip.remove(), 4000);
+                    }
+                    break;
+            }
+        });
+
+        // Start
+        init();
+
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                handleMainButton();
+            } else if (e.code === 'KeyR') {
+                resetSimulation();
+            }
+        });
+    </script>
+</body>
+</html></html>

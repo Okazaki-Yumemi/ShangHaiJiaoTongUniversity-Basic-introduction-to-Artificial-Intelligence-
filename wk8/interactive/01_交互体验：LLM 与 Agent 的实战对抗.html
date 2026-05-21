@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LLM vs AI Agent: 决策链对比模拟</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --primary: #8b5cf6;
+            --llm-color: #ef4444;
+            --agent-color: #10b981;
+            --bg-dark: #0f172a;
+        }
+        body {
+            background-color: var(--bg-dark);
+            color: white;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        .canvas-container {
+            position: relative;
+            background: #1e293b;
+            border-radius: 12px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .control-panel {
+            scrollbar-width: thin;
+            scrollbar-color: #475569 transparent;
+        }
+        .control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+        .control-panel::-webkit-scrollbar-thumb {
+            background-color: #475569;
+            border-radius: 10px;
+        }
+        input[type=range] {
+            height: 6px;
+            -webkit-appearance: none;
+            background: #475569;
+            border-radius: 5px;
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--primary);
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .log-box {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid #334155;
+            height: 120px;
+            overflow-y: auto;
+        }
+        @keyframes pulse-highlight { 
+            0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 
+            50% { outline-color: rgba(139, 92, 246, 0.4); } 
+        }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+    </style>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const katexOptions = {
+        delimiters: [
+            {left: '\\[', right: '\\]', display: true},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false,
+        strict: false,
+        trust: true
+    };
+
+    let renderTimeout;
+    function safeRender() {
+        if (renderTimeout) clearTimeout(renderTimeout);
+        renderTimeout = setTimeout(() => {
+            renderMathInElement(document.body, katexOptions);
+        }, 100);
+    }
+
+    renderMathInElement(document.body, katexOptions);
+
+    const observer = new MutationObserver((mutations) => {
+        let shouldRender = false;
+        mutations.forEach((mutation) => {
+            if (mutation.target &&
+                mutation.target.className &&
+                typeof mutation.target.className === 'string' &&
+                mutation.target.className.includes('katex')) {
+                return;
+            }
+            shouldRender = true;
+        });
+
+        if (shouldRender) {
+            safeRender();
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+
+    setInterval(() => {
+        const text = document.body.innerText;
+        if (text.includes('\\(') || text.includes('$$')) {
+            safeRender();
+        }
+    }, 2000);
+});
+</script>
+</head>
+<body class="flex flex-col md:flex-row min-h-screen p-2 md:p-4 gap-4">
+
+    <!-- JSON Config -->
+    <script type="application/json" id="widget-config">
+    {
+      "type": "simulation",
+      "concept": "LLM_vs_Agent_Action",
+      "description": "对比LLM的静态生成与AI Agent的感知-规划-行动闭环",
+      "variables": [
+        { "name": "realtime_data_access", "label": "实时数据接入", "min": 0, "max": 1, "default": 1, "unit": "" },
+        { "name": "tool_execution", "label": "工具调用能力", "min": 0, "max": 1, "default": 1, "unit": "" },
+        { "name": "iterative_planning", "label": "迭代规划", "min": 0, "max": 1, "default": 1, "unit": "" }
+      ],
+      "presets": [
+        { "name": "标准Agent模式", "variables": { "realtime_data_access": 1, "tool_execution": 1, "iterative_planning": 1 } },
+        { "name": "受限模式", "variables": { "realtime_data_access": 0, "tool_execution": 0, "iterative_planning": 0 } }
+      ]
+    }
+    </script>
+
+    <!-- Sidebar Controls -->
+    <aside id="controls" class="w-full md:w-80 shrink-0 flex flex-col gap-4 bg-slate-800 p-4 rounded-xl shadow-xl overflow-y-auto max-h-[45vh] md:max-h-screen">
+        <h1 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-emerald-400">LLM vs Agent 模拟</h1>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-1">实时数据接入 (MCP)</label>
+                <input type="range" id="realtime_data_access-slider" data-var="realtime_data_access" min="0" max="1" step="1" class="w-full">
+                <div class="flex justify-between text-xs text-slate-400 mt-1"><span>关闭</span><span>开启</span></div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">工具执行权限 (Tools)</label>
+                <input type="range" id="tool_execution-slider" data-var="tool_execution" min="0" max="1" step="1" class="w-full">
+                <div class="flex justify-between text-xs text-slate-400 mt-1"><span>禁止</span><span>允许</span></div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">迭代规划 (Loops)</label>
+                <input type="range" id="iterative_planning-slider" data-var="iterative_planning" min="0" max="1" step="1" class="w-full">
+                <div class="flex justify-between text-xs text-slate-400 mt-1"><span>单次</span><span>自动调整</span></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mt-2">
+            <button id="preset-1-btn" onclick="applyPreset(0)" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded transition">标准 Agent</button>
+            <button id="preset-2-btn" onclick="applyPreset(1)" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded transition">受限模式</button>
+        </div>
+
+        <div class="flex flex-col gap-2 mt-auto pt-4 border-t border-slate-700">
+            <button id="main-btn" onclick="handleMainAction()" class="w-full py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold transition-all transform active:scale-95">启动对比</button>
+            <button id="reset-btn" onclick="resetSimulation()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">重置场景</button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col gap-4 min-h-[400px]">
+        <div class="canvas-container flex-1">
+            <canvas id="sim-canvas" class="w-full h-full rounded-xl"></canvas>
+            
+            <!-- Floating HUD -->
+            <div class="absolute top-4 left-4 right-4 flex justify-between pointer-events-none">
+                <div class="bg-black/40 backdrop-blur-md p-2 rounded-lg border border-red-500/30">
+                    <div class="text-[10px] uppercase text-red-400">LLM (传统模型)</div>
+                    <div id="llm-status" class="text-xs font-mono">准备就绪</div>
+                </div>
+                <div class="bg-black/40 backdrop-blur-md p-2 rounded-lg border border-emerald-500/30 text-right">
+                    <div class="text-[10px] uppercase text-emerald-400">AI Agent (智能体)</div>
+                    <div id="agent-status" class="text-xs font-mono">准备就绪</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-time Activity Log -->
+        <div id="activity-log" class="log-box p-3 rounded-lg text-slate-300">
+            <div class="text-slate-500 text-xs italic">等待任务启动... 场景：策划一场突发天气下的三亚旅行。</div>
+        </div>
+    </main>
+
+    <script>
+        const canvas = document.getElementById('sim-canvas');
+        const ctx = canvas.getContext('2d');
+        const mainBtn = document.getElementById('main-btn');
+        const logBox = document.getElementById('activity-log');
+
+        let state = {
+            running: false,
+            paused: false,
+            ended: false,
+            time: 0,
+            llmProgress: 0,
+            agentProgress: 0,
+            currentStep: 0,
+            vars: {
+                realtime_data_access: 1,
+                tool_execution: 1,
+                iterative_planning: 1
+            }
+        };
+
+        const config = JSON.parse(document.getElementById('widget-config').textContent);
+
+        // Simulation content
+        const scenarios = {
+            request: "帮我预订明天去三亚的行程，要能看海的酒店。",
+            actualData: { weather: "大雨/台风", hotelA: "满房", hotelB: "有房" },
+            llmResponse: "没问题！三亚明天晴空万里。已为您选中三亚湾海景酒店（其实该店已满房），祝您旅途愉快！",
+            agentSteps: [
+                { id: 'env', label: '感知环境', tool: 'Weather API', result: '获取实时天气：大雨' },
+                { id: 'plan', label: '初步规划', tool: 'Search Tool', result: '由于天气转差，建议寻找室内设施完善的酒店' },
+                { id: 'exec', label: '尝试预订', tool: 'Hotel DB', result: '海景酒店A满房' },
+                { id: 'iter', label: '迭代修正', tool: 'Reasoning', result: '自动检索备选方案，预订海景酒店B成功' },
+                { id: 'done', label: '任务闭环', tool: 'Finalize', result: '三亚有雨，已为您预订备选的高端室内泳池海景房。' }
+            ]
+        };
+
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            // Link sliders
+            config.variables.forEach(v => {
+                const slider = document.getElementById(v.name + '-slider');
+                slider.value = v.default;
+                state.vars[v.name] = v.default;
+                slider.addEventListener('input', (e) => {
+                    state.vars[v.name] = parseFloat(e.target.value);
+                    if (!state.running) draw();
+                });
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        function resize() {
+            const rect = canvas.parentNode.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            draw();
+        }
+
+        function handleMainAction() {
+            if (state.ended) {
+                resetSimulation();
+                setTimeout(startSimulation, 100);
+            } else if (state.running) {
+                state.paused = !state.paused;
+                mainBtn.innerText = state.paused ? '继续' : '暂停';
+                mainBtn.classList.toggle('bg-yellow-600', state.paused);
+                mainBtn.classList.toggle('bg-purple-600', !state.paused);
+            } else {
+                startSimulation();
+            }
+        }
+
+        function startSimulation() {
+            state.running = true;
+            state.paused = false;
+            state.ended = false;
+            state.time = 0;
+            state.llmProgress = 0;
+            state.agentProgress = 0;
+            state.currentStep = 0;
+            mainBtn.innerText = '暂停';
+            mainBtn.classList.remove('bg-green-600');
+            mainBtn.classList.add('bg-purple-600');
+            addLog("🚀 用户指令: " + scenarios.request, "#a855f7");
+        }
+
+        function resetSimulation() {
+            state.running = false;
+            state.paused = false;
+            state.ended = false;
+            state.time = 0;
+            state.llmProgress = 0;
+            state.agentProgress = 0;
+            state.currentStep = 0;
+            mainBtn.innerText = '启动对比';
+            mainBtn.classList.remove('bg-yellow-600', 'bg-red-600');
+            mainBtn.classList.add('bg-purple-600');
+            logBox.innerHTML = '<div class="text-slate-500 text-xs italic">等待任务启动...</div>';
+            document.getElementById('llm-status').innerText = '准备就绪';
+            document.getElementById('agent-status').innerText = '准备就绪';
+            draw();
+        }
+
+        function addLog(msg, color = "#94a3b8") {
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.className = "mb-1 animate-[fadeIn_0.3s]";
+            div.innerText = `[${new Date().toLocaleTimeString().split(' ')[0]}] ${msg}`;
+            logBox.prepend(div);
+        }
+
+        function applyPreset(index) {
+            const p = config.presets[index];
+            Object.entries(p.variables).forEach(([key, val]) => {
+                state.vars[key] = val;
+                const slider = document.getElementById(key + '-slider');
+                if (slider) slider.value = val;
+            });
+            resetSimulation();
+        }
+
+        function draw() {
+            const w = canvas.width / window.devicePixelRatio;
+            const h = canvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, w, h);
+
+            const centerX = w / 2;
+            const topY = 80;
+            const trackW = Math.min(w * 0.4, 300);
+            
+            // Draw Split Line
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = '#334155';
+            ctx.beginPath(); ctx.moveTo(centerX, 40); ctx.lineTo(centerX, h - 40); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // LLM Path (Left)
+            drawTrack(centerX - trackW/2 - 20, topY, trackW, h - 140, "LLM", "#ef4444", state.llmProgress);
+            
+            // Agent Path (Right)
+            drawTrack(centerX + trackW/2 + 20, topY, trackW, h - 140, "Agent", "#10b981", state.agentProgress);
+
+            if (state.running) {
+                // LLM Animation Logic
+                if (state.llmProgress < 1) {
+                    state.llmProgress += 0.005;
+                    if (state.llmProgress >= 0.5 && state.llmProgress < 0.51) {
+                        addLog("⚠️ LLM: 无法检索实时天气，根据训练数据推测三亚晴天", "#f87171");
+                        document.getElementById('llm-status').innerText = '幻觉生成中...';
+                    }
+                } else if (state.llmProgress >= 1) {
+                    document.getElementById('llm-status').innerText = '任务完成(有误)';
+                }
+
+                // Agent Animation Logic
+                const totalSteps = scenarios.agentSteps.length;
+                const stepDuration = 1 / totalSteps;
+                
+                if (state.agentProgress < 1) {
+                    let nextProg = state.agentProgress + 0.002;
+                    
+                    // Check logic based on variables
+                    const stepIdx = Math.floor(state.agentProgress * totalSteps);
+                    if (stepIdx > state.currentStep) {
+                        state.currentStep = stepIdx;
+                        const stepData = scenarios.agentSteps[stepIdx];
+                        
+                        if (stepData) {
+                            // Failure conditions based on variables
+                            if (stepData.id === 'env' && !state.vars.realtime_data_access) {
+                                addLog("❌ Agent: 实时数据接入被禁用", "#f87171");
+                                state.agentProgress = 1; // Terminate
+                                document.getElementById('agent-status').innerText = '感知中断';
+                            } else if (stepData.id === 'exec' && !state.vars.tool_execution) {
+                                addLog("❌ Agent: 工具执行权限不足", "#f87171");
+                                state.agentProgress = 1; 
+                                document.getElementById('agent-status').innerText = '执行失败';
+                            } else if (stepData.id === 'iter' && !state.vars.iterative_planning) {
+                                addLog("⚠️ Agent: 规划受限，无法处理异常", "#fbbf24");
+                                state.agentProgress = 1;
+                                document.getElementById('agent-status').innerText = '流程终止';
+                            } else {
+                                addLog(`✅ Agent [${stepData.label}]: ${stepData.result}`, "#34d399");
+                                document.getElementById('agent-status').innerText = `正在${stepData.label}...`;
+                            }
+                        }
+                    }
+                    state.agentProgress = nextProg;
+                } else {
+                    if (!state.ended) {
+                        state.ended = true;
+                        mainBtn.innerText = '重新开始';
+                        mainBtn.classList.remove('bg-purple-600');
+                        mainBtn.classList.add('bg-red-600');
+                        addLog("🏁 对比结束。观察 Agent 如何通过工具和循环解决 LLM 的幻觉问题。", "#ffffff");
+                    }
+                }
+            }
+        }
+
+        function drawTrack(x, y, w, h, label, color, progress) {
+            // Label
+            ctx.fillStyle = color;
+            ctx.font = "bold 16px Inter, system-ui";
+            ctx.textAlign = "center";
+            ctx.fillText(label, x, y - 20);
+
+            // Path
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x, y + h);
+            ctx.stroke();
+
+            // Progress Path
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x, y + h * progress);
+            ctx.stroke();
+
+            // Moving Node
+            const nodeY = y + h * progress;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, nodeY, 8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Glow effect
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // LLM Hallucination Cloud vs Agent Tools
+            if (label === "LLM") {
+                drawLLMDetails(x, y, h, progress);
+            } else {
+                drawAgentDetails(x, y, h, progress);
+            }
+        }
+
+        function drawLLMDetails(x, y, h, progress) {
+            if (progress > 0.4) {
+                ctx.fillStyle = "#f87171";
+                ctx.font = "12px monospace";
+                ctx.textAlign = "right";
+                ctx.fillText("基于静态概率生成", x - 15, y + h * 0.5);
+                ctx.fillText("! 存在幻觉风险", x - 15, y + h * 0.5 + 15);
+            }
+            if (progress >= 1) {
+                ctx.fillStyle = "#ef4444";
+                ctx.fillRect(x - 80, y + h + 10, 160, 40);
+                ctx.fillStyle = "white";
+                ctx.font = "10px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("三亚明天大晴天！已订满房酒店A", x, y + h + 25);
+                ctx.fillText("(自信的错误)", x, y + h + 38);
+            }
+        }
+
+        function drawAgentDetails(x, y, h, progress) {
+            const steps = scenarios.agentSteps;
+            steps.forEach((s, i) => {
+                const stepY = y + (h * (i / steps.length));
+                const isActive = progress >= (i / steps.length);
+                
+                ctx.fillStyle = isActive ? "#10b981" : "#475569";
+                ctx.beginPath();
+                ctx.arc(x, stepY, 4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.textAlign = "left";
+                ctx.font = "10px sans-serif";
+                ctx.fillText(s.label, x + 15, stepY + 3);
+            });
+
+            if (progress >= 1 && state.vars.iterative_planning) {
+                ctx.fillStyle = "#10b981";
+                ctx.fillRect(x - 80, y + h + 10, 160, 40);
+                ctx.fillStyle = "white";
+                ctx.font = "10px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("三亚有雨，已避开满房酒店A", x, y + h + 25);
+                ctx.fillText("为您预订了备选酒店B", x, y + h + 38);
+            }
+        }
+
+        function animate() {
+            if (!state.paused) draw();
+            requestAnimationFrame(animate);
+        }
+
+        // PostMessage Listener
+        window.addEventListener('message', function(event) {
+            const { type, target, state: newState, content } = event.data;
+            switch (type) {
+                case 'SET_WIDGET_STATE':
+                    if (newState) {
+                        Object.entries(newState).forEach(([key, value]) => {
+                            const slider = document.getElementById(key + '-slider');
+                            if (slider) {
+                                slider.value = value;
+                                state.vars[key] = value;
+                                slider.dispatchEvent(new Event('input'));
+                            }
+                        });
+                    }
+                    break;
+                case 'HIGHLIGHT_ELEMENT':
+                    const el = document.querySelector(target);
+                    if (el) {
+                        el.style.outline = '3px solid #8b5cf6';
+                        el.style.outlineOffset = '4px';
+                        el.style.animation = 'pulse-highlight 2s infinite';
+                        setTimeout(() => { el.style.outline = ''; el.style.animation = ''; }, 3000);
+                    }
+                    break;
+                case 'ANNOTATE_ELEMENT':
+                    const annEl = document.querySelector(target);
+                    if (annEl && content) {
+                        const rect = annEl.getBoundingClientRect();
+                        const tip = document.createElement('div');
+                        tip.className = 'teacher-annotation';
+                        tip.style.cssText = `position:fixed; top:${rect.top - 40}px; left:${rect.left}px; background:rgba(139,92,246,0.9); color:white; padding:6px 10px; border-radius:8px; font-size:12px; z-index:100; animation:fadeIn 0.3s;`;
+                        tip.textContent = content;
+                        document.body.appendChild(tip);
+                        setTimeout(() => tip.remove(), 4000);
+                    }
+                    break;
+            }
+        });
+
+        const style = document.createElement('style');
+        style.textContent = '@keyframes pulse-highlight { 0%, 100% { outline-color: rgba(139, 92, 246, 0.8); } 50% { outline-color: rgba(139, 92, 246, 0.4); } } @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }';
+        document.head.appendChild(style);
+
+        init();
+    </script>
+</body>
+</html>
+</html>
