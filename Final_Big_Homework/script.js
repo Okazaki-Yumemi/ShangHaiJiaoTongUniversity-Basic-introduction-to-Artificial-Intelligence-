@@ -14,7 +14,9 @@ const state = {
   gate3Choice: null,
   gate3Outcome: null,
   finalRiskProfile: null,
+  finalProfileReport: null,
   assistantSource: null,
+  evidenceLog: [],
   chatHistory: [],
 };
 
@@ -36,6 +38,21 @@ function bindClick(selector, handler) {
   }
 }
 
+function recordEvidence(gate, title, severity, detail) {
+  const id = `${gate}:${title}`;
+  if (state.evidenceLog.some((item) => item.id === id)) {
+    return;
+  }
+
+  state.evidenceLog.push({
+    id,
+    gate,
+    title,
+    severity,
+    detail,
+  });
+}
+
 function showIntro() {
   state.currentScene = "intro";
   state.firstChoice = null;
@@ -48,7 +65,9 @@ function showIntro() {
   state.gate3Choice = null;
   state.gate3Outcome = null;
   state.finalRiskProfile = null;
+  state.finalProfileReport = null;
   state.assistantSource = null;
+  state.evidenceLog = [];
   state.chatHistory = [];
   window.firstChoice = null;
   window.secondChoice = null;
@@ -142,10 +161,12 @@ function handleFirstChoice(choice) {
   window.firstChoice = choice;
 
   if (choice === "click_link") {
+    recordEvidence("第一关", "点击陌生奖学金链接", "risk", "被“补录资格确认”和限时话术吸引，进入伪造认证页。");
     showScene3();
     return;
   }
 
+  recordEvidence("第一关", "先核实奖学金短信", "safe", "没有直接点开陌生链接，选择先判断来源是否可靠。");
   handleSecondChoice("consult_ai");
 }
 
@@ -154,10 +175,12 @@ function handleSecondChoice(choice) {
   window.secondChoice = choice;
 
   if (choice === "submit_info") {
+    recordEvidence("第一关", "继续填写敏感信息", "risk", "伪造页面要求姓名、学号、身份证号、银行卡号、验证码，风险明显升级。");
     showRiskEnding();
     return;
   }
 
+  recordEvidence("第一关", "咨询 AI 反诈助手", "safe", "在继续操作前引入外部分析，主动核实短信和链接风险。");
   showScene4();
 }
 
@@ -887,6 +910,7 @@ function handleGate2Choice(choice) {
   if (choice === "pay_directly") {
     state.gate2Outcome = "risk";
     window.gate2Outcome = state.gate2Outcome;
+    recordEvidence("第二关", "直接帮陌生人扫码付款", "risk", "线下求助升级为资金交易，存在小额试探、后续加码或引流风险。");
     updateRiskAwareness("直接帮他扫码付款");
     showGate2RiskResult();
     return;
@@ -895,6 +919,7 @@ function handleGate2Choice(choice) {
   if (choice === "seek_official_help") {
     state.gate2Outcome = "safe";
     window.gate2Outcome = state.gate2Outcome;
+    recordEvidence("第二关", "引导对方寻求官方帮助", "safe", "保留善意但不直接转账，优先选择保卫处、服务台、老师等可靠渠道。");
     updateRiskAwareness("提议带他去保卫处服务台找老师");
     showGate2SafeResult();
     return;
@@ -902,6 +927,7 @@ function handleGate2Choice(choice) {
 
   state.gate2Outcome = "ai";
   window.gate2Outcome = state.gate2Outcome;
+  recordEvidence("第二关", "先咨询 AI 分析代付风险", "safe", "在扫码或付款前暂停判断，主动识别陌生收款码和代付风险。");
   updateRiskAwareness("咨询AI反诈助手");
   showGate2AIAnalysis();
 }
@@ -1155,6 +1181,7 @@ function handleGate3Choice(choice) {
   if (choice === "scan_qr") {
     state.gate3Outcome = "risk";
     window.gate3Outcome = state.gate3Outcome;
+    recordEvidence("第三关", "好奇扫描不明二维码", "risk", "来路不明的小广告二维码可能引流到钓鱼页、恶意 App 或充值陷阱。");
     updateRiskAwareness("好奇扫码看看");
     showGate3RiskResult();
     return;
@@ -1163,6 +1190,7 @@ function handleGate3Choice(choice) {
   if (choice === "ignore_leave") {
     state.gate3Outcome = "safe";
     window.gate3Outcome = state.gate3Outcome;
+    recordEvidence("第三关", "无视可疑二维码并离开", "safe", "没有进入不明入口，直接降低被引流、下载或信息收集的概率。");
     updateRiskAwareness("直接无视并离开");
     showGate3SafeResult();
     return;
@@ -1170,6 +1198,7 @@ function handleGate3Choice(choice) {
 
   state.gate3Outcome = "ai";
   window.gate3Outcome = state.gate3Outcome;
+  recordEvidence("第三关", "咨询 AI 或拍照举报", "safe", "面对可疑贴纸先分析、留证或反馈，不因好奇进入未知页面。");
   updateRiskAwareness("咨询AI反诈助手拍照举报");
   showGate3AIAnalysis();
 }
@@ -1365,6 +1394,7 @@ function showFinalSummary() {
   setSceneMeta("Final", "ending");
 
   const gateCards = getGateReviewCards();
+  const evidenceStats = getEvidenceStats();
 
   render(`
     <article class="screen final-summary-card">
@@ -1381,6 +1411,22 @@ function showFinalSummary() {
       <section class="multi-profile-section" id="multiProfileSection" aria-live="polite">
         <p class="risk-title">AI 多维反诈画像分类</p>
         <div class="profile-loading">AI 正在生成多维反诈画像……</div>
+      </section>
+
+      <section class="evidence-board">
+        <div class="evidence-board-head">
+          <div>
+            <p class="risk-title">全程风险线索复盘</p>
+            <p class="choice-note">系统按你的关键选择自动生成，可作为课堂展示中的“可解释轨迹”。</p>
+          </div>
+          <div class="evidence-stats" aria-label="风险线索统计">
+            <span>${evidenceStats.safe} 个稳妥动作</span>
+            <span>${evidenceStats.risk} 个风险动作</span>
+          </div>
+        </div>
+        <div class="evidence-grid">
+          ${renderEvidenceCards()}
+        </div>
       </section>
 
       <section class="review-grid">
@@ -1403,12 +1449,25 @@ function showFinalSummary() {
         </ul>
       </section>
 
+      <section class="action-plan-card">
+        <p class="risk-title">下一次遇到类似情况的行动清单</p>
+        <div class="action-checklist">
+          ${getActionChecklist(profile.label).map((item) => `
+            <label class="action-item">
+              <input type="checkbox">
+              <span>${item}</span>
+            </label>
+          `).join("")}
+        </div>
+      </section>
+
       <section class="ai-note-card">
         <p class="risk-title">AI 功能说明</p>
-        <p class="choice-note">本项目使用 AI 反诈助手进行场景分析，并结合剧情选择与提问内容生成风险意识分类。当前支持实时 AI 分析与离线演示模式。</p>
+        <p class="choice-note">本项目使用 AI 反诈助手进行场景分析，并结合剧情选择与提问内容生成风险意识分类。当前支持实时 AI 分析与离线演示模式；最终页还可以导出一份 Markdown 反诈画像报告，方便课程答辩留档。</p>
       </section>
 
       <div class="actions">
+        <button class="primary-button" type="button" data-action="export-report">导出反诈画像报告</button>
         <button class="primary-button" type="button" data-action="restart">重新开始</button>
         <button class="choice-button safe" type="button" data-action="back-gate3">返回第三关总结</button>
       </div>
@@ -1417,6 +1476,7 @@ function showFinalSummary() {
 
   bindClick("[data-action='restart']", restartStory);
   bindClick("[data-action='back-gate3']", showGate3Summary);
+  bindClick("[data-action='export-report']", exportFinalReport);
   loadFinalProfileReport(profile.label);
 }
 
@@ -1448,6 +1508,12 @@ async function requestRealFinalProfile(finalRuleProfile) {
         gate3Choice: state.gate3Choice,
         gate3Outcome: state.gate3Outcome,
         finalRuleProfile,
+        evidenceLog: state.evidenceLog.map(({ gate, title, severity, detail }) => ({
+          gate,
+          title,
+          severity,
+          detail,
+        })),
         scenarioRiskAwareness: {
           gate1: state.secondChoice === "submit_info" ? "轻信型" : state.firstChoice === "verify_first" ? "警惕型" : "犹豫型",
           gate2: state.gate2Choice === "pay_directly" ? "轻信型" : state.gate2Choice === "seek_official_help" ? "警惕型" : "犹豫型",
@@ -1610,6 +1676,7 @@ function renderFinalProfileReport(report) {
     return;
   }
 
+  state.finalProfileReport = report;
   const sourceLabel = report.source === "llm" ? "实时 AI 分类" : "离线分类演示";
   const sourceClass = report.source === "llm" ? "is-live" : "";
 
@@ -1644,6 +1711,124 @@ function renderFinalProfileReport(report) {
       `).join("")}
     </section>
   `;
+}
+
+function getEvidenceStats() {
+  return state.evidenceLog.reduce(
+    (stats, item) => {
+      if (item.severity === "risk") {
+        stats.risk += 1;
+      } else {
+        stats.safe += 1;
+      }
+      return stats;
+    },
+    { safe: 0, risk: 0 }
+  );
+}
+
+function renderEvidenceCards() {
+  if (state.evidenceLog.length === 0) {
+    return `
+      <div class="evidence-card">
+        <p class="review-title">暂无完整线索</p>
+        <p class="awareness-reason">重新体验三关后，这里会记录你的关键选择与风险依据。</p>
+      </div>
+    `;
+  }
+
+  return state.evidenceLog.map((item) => `
+    <div class="evidence-card ${item.severity}">
+      <span class="evidence-gate">${item.gate}</span>
+      <p class="review-title">${item.title}</p>
+      <p class="awareness-reason">${item.detail}</p>
+    </div>
+  `).join("");
+}
+
+function getActionChecklist(profileLabel) {
+  const baseline = [
+    "看到陌生链接、二维码或收款码时，先问自己：来源是否官方？",
+    "涉及身份证号、银行卡号、验证码时，一律暂停并核实。",
+    "遇到紧急话术时先截图留证，再通过官方渠道确认。",
+  ];
+
+  if (profileLabel === "轻信型") {
+    return [
+      "任何“先点一下 / 先垫一下 / 先扫一下”的请求都先暂停。",
+      ...baseline,
+      "把辅导员、保卫处、教务平台作为默认核实渠道。",
+    ];
+  }
+
+  if (profileLabel === "犹豫型") {
+    return [
+      "犹豫时优先选择非资金型帮助和官方核实。",
+      ...baseline,
+      "不要因为不好意思拒绝而直接转账或扫码。",
+    ];
+  }
+
+  return [
+    ...baseline,
+    "发现可疑贴纸、引流广告或诈骗短信时，可以提醒同学并反馈给学校相关渠道。",
+  ];
+}
+
+function exportFinalReport() {
+  const profile = computeFinalRiskProfile();
+  const detailedProfile = state.finalProfileReport || getMockFinalProfile(profile.label);
+  const gateCards = getGateReviewCards();
+  const evidenceStats = getEvidenceStats();
+  const lines = [
+    "# 《别点那个链接！》反诈画像报告",
+    "",
+    `生成时间：${new Date().toLocaleString("zh-CN")}`,
+    "",
+    "## 总体风险识别倾向",
+    "",
+    `- 规则画像：${profile.label}`,
+    `- 判定依据：${profile.reason}`,
+    `- 多维画像：${detailedProfile.overallProfile}`,
+    `- 多维画像来源：${detailedProfile.source === "llm" ? "实时 AI 分类" : "离线分类演示"}`,
+    `- 画像说明：${detailedProfile.overallReason}`,
+    "",
+    "## 三关关键选择",
+    "",
+    ...gateCards.flatMap((card) => [
+      `### ${card.title}`,
+      `- 关键选择：${card.choice}`,
+      `- 简评：${card.comment}`,
+      "",
+    ]),
+    "## 风险线索复盘",
+    "",
+    `- 稳妥动作：${evidenceStats.safe} 个`,
+    `- 风险动作：${evidenceStats.risk} 个`,
+    "",
+    ...state.evidenceLog.map((item) => `- ${item.gate}｜${item.title}：${item.detail}`),
+    "",
+    "## 多维分类",
+    "",
+    ...detailedProfile.dimensions.map((dimension) => (
+      `- ${dimension.name}：${dimension.level}（${dimension.score}分）｜${dimension.reason}`
+    )),
+    "",
+    "## 行动清单",
+    "",
+    ...getActionChecklist(profile.label).map((item) => `- [ ] ${item}`),
+    "",
+  ];
+
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "anti-fraud-profile-report.md";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function getDimensionClass(level) {

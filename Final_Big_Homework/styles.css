@@ -431,7 +431,10 @@ button {
 .ai-note-card,
 .multi-profile-section,
 .overall-profile-card,
-.dimension-card {
+.dimension-card,
+.evidence-board,
+.evidence-card,
+.action-plan-card {
   border: 1px solid rgba(103, 211, 255, 0.22);
   border-radius: 8px;
   padding: 16px;
@@ -440,7 +443,9 @@ button {
 
 .profile-card,
 .ai-note-card,
-.multi-profile-section {
+.multi-profile-section,
+.evidence-board,
+.action-plan-card {
   margin: 22px 0;
 }
 
@@ -539,6 +544,93 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 22px 0;
+}
+
+.evidence-board {
+  border-color: rgba(243, 201, 105, 0.28);
+  background: linear-gradient(180deg, rgba(243, 201, 105, 0.09), rgba(255, 255, 255, 0.045));
+}
+
+.evidence-board-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.evidence-stats {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.evidence-stats span,
+.evidence-gate {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #061018;
+  background: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.evidence-card {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.evidence-card.safe {
+  border-color: rgba(126, 231, 179, 0.3);
+}
+
+.evidence-card.safe .evidence-gate {
+  background: var(--success);
+}
+
+.evidence-card.risk {
+  border-color: rgba(255, 123, 138, 0.32);
+}
+
+.evidence-card.risk .evidence-gate {
+  background: var(--danger);
+}
+
+.action-plan-card {
+  border-color: rgba(126, 231, 179, 0.26);
+}
+
+.action-checklist {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.action-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  color: #dbe6f6;
+  background: rgba(0, 0, 0, 0.16);
+  line-height: 1.6;
+}
+
+.action-item input {
+  margin-top: 5px;
+  accent-color: var(--success);
 }
 
 .review-title {
@@ -840,6 +932,18 @@ button {
 
   .review-grid {
     grid-template-columns: 1fr;
+  }
+
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-board-head {
+    flex-direction: column;
+  }
+
+  .evidence-stats {
+    justify-content: flex-start;
   }
 
   .dimension-grid {

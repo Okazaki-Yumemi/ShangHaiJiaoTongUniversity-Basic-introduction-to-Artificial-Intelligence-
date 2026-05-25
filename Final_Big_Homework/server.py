@@ -22,6 +22,7 @@ PROFILE_DIMENSIONS = [
     "紧迫话术抗干扰能力",
 ]
 DEFAULT_TIMEOUT_SECONDS = 20
+PROFILE_TIMEOUT_SECONDS = 60
 
 app = Flask(__name__)
 if CORS is not None:
@@ -108,6 +109,7 @@ def build_profile_user_prompt(data: dict[str, Any]) -> str:
             "gate3Choice": data.get("gate3Choice"),
             "gate3Outcome": data.get("gate3Outcome"),
             "finalRuleProfile": data.get("finalRuleProfile"),
+            "evidenceLog": data.get("evidenceLog") or [],
             "scenarioRiskAwareness": data.get("scenarioRiskAwareness") or {},
             "classificationDimensions": PROFILE_DIMENSIONS,
             "outputFormat": {
@@ -307,7 +309,7 @@ def call_openai_compatible_profile_api(data: dict[str, Any]) -> dict[str, Any]:
             ],
             "temperature": 0.1,
         },
-        timeout=DEFAULT_TIMEOUT_SECONDS,
+        timeout=PROFILE_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
 
