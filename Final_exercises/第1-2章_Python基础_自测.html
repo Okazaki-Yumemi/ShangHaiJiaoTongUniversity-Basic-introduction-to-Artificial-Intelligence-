@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>第1-2章_Python基础_自测</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+/* === Quiz Creator Shared Styles === */
+/* Paper-like warm background, clean typography, responsive */
+
+:root {
+  --paper: #f5f7fa;
+  --paper-dark: #e8ecf1;
+  --ink: #2c2c2c;
+  --ink-light: #555;
+  --accent: #1a5276;
+  --accent-hover: #0d3b5c;
+  --divider: #d0d7de;
+  --card-bg: #fff;
+  --card-border: #dfe3e8;
+  --correct: #27ae60;
+  --correct-bg: #f0fdf4;
+  --wrong: #c0392b;
+  --wrong-bg: #fef2f2;
+  --tag-bg: #fdebd0;
+  --tag-text: #935116;
+  --radius: 6px;
+  --shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+  font-size: 12pt; line-height: 1.75; color: var(--ink);
+  max-width: 860px; margin: auto; padding: 24px 20px 60px;
+  background: var(--paper);
+}
+
+@media print {
+  body { font-size: 10.5pt; background: #fff; }
+  .no-print { display: none !important; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+
+/* ── Header ── */
+#qc-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0; margin-bottom: 0;
+}
+.header-brand { font-size: 1.2em; font-weight: 700; color: var(--accent); letter-spacing: 0.3px; }
+.header-url  { font-size: 0.78em; color: #999; }
+.header-divider { border: none; border-top: 2px solid var(--divider); margin: 4px 0 20px 0; }
+
+/* ── Typography ── */
+h1 { font-size: 1.5em; text-align: center; margin: 0 0 4px 0; }
+h2 { font-size: 1.2em; color: var(--ink); margin: 20px 0 8px; }
+h3 { font-size: 1.05em; margin-top: 18px; color: var(--ink); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Tables ── */
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.95em; }
+td, th { border: 1px solid var(--card-border); padding: 5px 9px; text-align: left; }
+th { background: var(--paper-dark); font-weight: 700; }
+
+/* ── Knowledge point vs explanation ── */
+.kp { font-weight: 700; color: var(--ink); }
+.exp { font-weight: 400; color: var(--ink-light); }
+.exp em, .exp strong { color: var(--ink); }
+
+/* ── Block elements ── */
+blockquote {
+  border-left: 3px solid #c0392b; background: #fef9ef;
+  padding: 6px 14px; margin: 10px 0; font-size: 0.95em;
+}
+code { background: #f0ede0; padding: 2px 5px; border-radius: 3px; font-size: 0.92em; }
+pre code { background: transparent; color: inherit; padding: 0; }
+pre { background: #1e1e2e; color: #e0e0e0; padding: 10px; border-radius: var(--radius); overflow-x: auto; }
+
+/* ── Progress bar ── */
+.progress-bar { height: 6px; background: #ddd; border-radius: 3px; margin: 12px 0; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); width: 0; transition: width .3s; border-radius: 3px; }
+
+/* ── Priority tags ── */
+.tag-must   { background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-key    { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-freq   { background: #dbeafe; color: #1e40af; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-info   { background: #f0fdf4; color: #166534; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+
+/* === Quiz Creator — Interactive Test Styles === */
+
+/* ── Score box ── */
+#score-box {
+  display: none; background: var(--card-bg); color: var(--ink);
+  padding: 16px 20px; border-radius: var(--radius); margin: 14px 0;
+  text-align: center; border: 1px solid var(--card-border); box-shadow: var(--shadow);
+}
+#score-box .score-num { font-size: 2.2em; font-weight: 700; color: var(--accent); }
+#score-box .score-label { font-size: 0.85em; color: var(--ink-light); }
+#score-box .score-detail { margin: 6px 0; font-size: 0.9em; color: var(--ink-light); }
+
+/* ── Weak KPs ── */
+#weak-section { display: none; margin-top: 10px; }
+#weak-section strong { font-size: 0.9em; }
+.kp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
+.kp-tag { background: var(--tag-bg); color: var(--tag-text); padding: 3px 12px; border-radius: 12px; font-size: 0.82em; }
+
+/* ── Question card ── */
+.q-card {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 14px 16px; margin: 10px 0;
+  box-shadow: var(--shadow); transition: all 0.15s;
+  border-left: 4px solid transparent;
+}
+.q-card.correct { border-left-color: var(--correct); background: var(--correct-bg); }
+.q-card.wrong   { border-left-color: var(--wrong); background: var(--wrong-bg); }
+
+.q-num  { font-weight: 700; font-size: 0.95em; margin-bottom: 6px; color: var(--ink-light); }
+.q-text { margin-bottom: 8px; font-size: 0.98em; line-height: 1.7; }
+.q-text .kp-badge { font-size: 0.78em; color: var(--ink-light); margin-left: 8px; }
+
+/* ── Options ── */
+.option {
+  display: block; padding: 5px 10px; margin: 4px 0;
+  border: 1px solid var(--card-border); border-radius: 4px;
+  cursor: pointer; transition: all 0.12s; font-size: 0.93em;
+  background: #fefcf5;
+}
+.option:hover            { background: #f0ede0; }
+.option input            { margin-right: 6px; }
+.option.selected         { border-color: var(--accent); background: #eff6ff; }
+.option.correct-answer   { border-color: var(--correct); background: var(--correct-bg); }
+.option.wrong-answer     { border-color: var(--wrong); background: var(--wrong-bg); }
+
+/* ── Textareas (for short/code) ── */
+.q-textarea {
+  width: 100%; min-height: 56px; border: 1px solid var(--card-border);
+  border-radius: 4px; padding: 6px 10px; font-family: inherit;
+  font-size: 0.93em; background: #fefcf5; resize: vertical;
+}
+.q-textarea:focus { outline: none; border-color: var(--accent); }
+.q-code {
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  font-size: 0.88em; line-height: 1.5; background: #1e1e2e; color: #e0e0e0;
+  tab-size: 4; white-space: pre;
+}
+.q-code:focus { border-color: var(--accent); }
+
+/* ── Fill input ── */
+.fill-input {
+  width: 120px; padding: 3px 8px; border: 1px solid var(--card-border);
+  border-radius: 3px; font-size: 0.95em; text-align: center; background: #fff;
+}
+.fill-input:focus { outline: none; border-color: var(--accent); }
+.fill-input.fill-ok { border-color: var(--correct); background: var(--correct-bg); }
+.fill-input.fill-no { border-color: var(--wrong); background: var(--wrong-bg); }
+.fill-row { margin: 6px 0; }
+.fill-tag { font-weight: 600; margin-right: 4px; font-size: 0.9em; }
+
+/* ── Partial-credit card ── */
+.q-card.partial { border-color: #f59e0b; }
+.badge-partial { background: #fef3c7; color: #92400e; }
+
+/* ── Result after grading ── */
+.result {
+  display: none; margin-top: 8px; padding: 8px 12px;
+  background: #fefcf5; border: 1px solid var(--card-border);
+  border-radius: 4px; font-size: 0.9em; line-height: 1.6;
+}
+.result .badge {
+  display: inline-block; padding: 1px 9px; border-radius: 3px;
+  font-weight: 700; font-size: 0.82em; margin-right: 6px;
+}
+.badge-ok  { background: var(--correct-bg); color: #166534; }
+.badge-no  { background: var(--wrong-bg); color: #991b1b; }
+.badge-ref { background: #dbeafe; color: #1e40af; }
+
+.result .explanation { margin-top: 4px; color: var(--ink); }
+.result .pitfall { color: #b45309; margin-top: 3px; font-size: 0.9em; }
+
+/* ── Grading bar ── */
+.grading-bar { text-align: center; margin: 16px 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.grading-bar button {
+  font-size: 0.95em; padding: 8px 24px; background: var(--accent);
+  color: #fff; border: none; border-radius: var(--radius);
+  cursor: pointer; font-weight: 600; letter-spacing: 0.3px;
+}
+.grading-bar button:hover     { background: var(--accent-hover); }
+.grading-bar button:disabled  { background: #bbb; cursor: not-allowed; }
+.grading-bar .btn-secondary   { background: #7f8c8d; }
+.grading-bar .btn-secondary:hover { background: #6b7a7b; }
+.grading-bar .btn-warning     { background: #e67e22; }
+.grading-bar .btn-warning:hover   { background: #c96d1c; }
+
+/* ── Log status ── */
+#logStatus { font-size: 0.85em; margin-top: 4px; text-align: center; color: var(--ink-light); }
+
+/* ── Print ── */
+.no-print { }
+
+</style>
+</head>
+<body>
+
+<header id="qc-header">
+  <div class="header-left"><span class="header-brand">Quiz Creator</span></div>
+  <div class="header-right"><span class="header-url">生成时间: 2026-06-12 11:50</span></div>
+</header>
+<hr class="header-divider">
+
+<h1>第1-2章_Python基础_自测</h1>
+<p style="text-align:center;color:var(--ink-light);font-size:0.95em">满分 60 分 | 建议 30 分钟</p>
+
+<div class="progress-bar no-print"><div class="progress-fill" id="progressFill"></div></div>
+<div id="score-box">
+  <div class="score-num"><span id="score-num">0</span> / <span id="score-max">60</span></div>
+  <div class="score-label">总分</div>
+  <div class="score-detail">正确: <span id="correct-count">0</span> &nbsp;|&nbsp; 错误: <span id="wrong-count">0</span></div>
+  <div id="weak-section"><strong>📚 需要复习的知识点</strong>
+    <div class="kp-tags" id="kp-tags"></div>
+  </div>
+</div>
+<div id="questions-container"></div>
+<div class="grading-bar no-print">
+  <button onclick="gradeAll()" id="grade-btn">提交批改</button>
+  <button onclick="toggleExplanations()" id="btn-toggle" class="btn-secondary" style="display:none">展开解析</button>
+  <button onclick="resetQuiz()" id="btn-reset" class="btn-warning" style="display:none">重新作答</button>
+  <button onclick="exportLog()" id="btn-export" class="btn-secondary" style="display:none">⬇ 下载错题日志</button>
+</div>
+<div id="logStatus"></div>
+
+<!-- KaTeX JS loaded at the bottom so it doesn't block rendering -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
+
+<script>
+var Q = [{"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">a = 0.1 + 0.2\nb = 0.3\nprint(a == b)\nprint(type(a) == type(b))\n</code></pre>\n运行这段代码，屏幕上会输出什么？", "options": ["False, True — 浮点精度使0.1+0.2不等于0.3，但a和b都是float", "True, True — Python四舍五入后相等，类型一致", "False, False — 浮点运算后结果自动转为decimal类型", "False, True — 0.1+0.2恰好等于0.3，且类型都是float"], "answer": 0, "kp": ["float-precision", "data-type", "comparison"], "explanation": "0.1+0.2=0.30000000000000004，不等于0.3。type(a)和type(b)都是float，True。", "id": "S1"}, {"type": "mcq", "points": 3, "question": "一个实习生先跑了一段代码：\n<pre><code class=\"lang-python\">total = 0.1 + 0.2\nprint(total == 0.3)         # 输出 False\nprint(round(total, 1) == 0.3)  # 输出 True</code></pre>\n他心想：\"哦，round() 能解决浮点精度问题。\"\n可后来他又发现：<code>round(2.675, 2)</code> 在某些环境里输出 2.67 而不是 2.68。\n综合这两次实验，下面哪个判断最准确？", "options": ["round() 不是浮点比较的万能方案——2.675边界情况即反例", "round() 完全解决了精度问题，2.675 只是个别版本的差异", "第一组测试说明浮点精度是随机的，round() 有时有效有时无效", "浮点问题只出现在 0.1+0.2 这种特定组合中，其他情况无影响"], "answer": 0, "kp": ["float-precision", "comparison"], "explanation": "0.1+0.2≠0.3(浮点精度)，round(0.30004,1)=0.3碰巧相等。但round(2.675,2)在某些Python版本=2.67，说明round受底层二进制表示影响，不是万能方案。精度比较应使用误差范围法：abs(a-b) < 1e-10。", "id": "S2"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">x = []\ny = \"\"\nz = 0\nresult = (x or y) and z\nprint(result)</code></pre>\n下面哪种理解是对的？", "options": ["输出True — x or y返回\"\"(假值)，\"\" and z遇到假值停，结果为True", "输出空字符串 — x or y返回\"\"，\"\" and z遇到\"\"就停并返回\"\"", "输出0 — x or y返回\"\"，\"\" and z继续判断z=0，返回0", "输出False — 所有操作数都是假值，最终表达式结果为False"], "answer": 1, "kp": ["bool-logic", "short-circuit", "truthy-falsy"], "explanation": "x or y = [] or \"\" → \"\"(or遇假值继续，返回最后一个假值)。\"\" and 0 → 遇到假值\"\"就停，返回\"\"。and/or返回原始对象，非True/False。", "id": "S3"}, {"type": "mcq", "points": 3, "question": "有个同学想检查问卷得分字段有没有数据，写了这段代码：\n<pre><code class=\"lang-python\">response = {\"score\": None}\nif response.get(\"score\", 0) or \"缺失\":\n    print(\"有数据\")\nelse:\n    print(\"无数据\")</code></pre>\n结果他发现，不管 score 是什么值，输出的都是\"有数据\"。\n他同事看了一眼说：\"get('score', 0) 在 score 为 None 时返回 0，\n然后 0 or '缺失' 得到 0，if 0 是假值，按理说应该输出'无数据'才对啊。\"\n这位同事的分析哪里出了问题？", "options": ["get() 在键存在但值为 None 时返回 None 而非 0；None or \"缺失\" 得 \"缺失\"（真值）", "同事分析完全正确——这里确实是 bug，应该输出\"无数据\"", "同事说错了——response 字典非空，字典本身就是真值", "同事分析正确但原因不对——score 为 None 时 get() 直接返回\"缺失\"默认值"], "answer": 0, "kp": ["dict", "short-circuit", "truthy-falsy"], "explanation": "get(\"score\",0)在key=score、value=None时返回None(不是0)。None or \"缺失\"→or遇假值继续→\"缺失\"是真值→条件恒真。同事把get()在\"键存在但值为None\"和\"键不存在\"两种情况混淆了。", "id": "S4"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">s = \"深度学习\"\ns[1] = \"的\"\nprint(s)</code></pre>\n下面哪个说法对？", "options": ["输出\"深的习\" — 字符串索引可修改，成功替换第2个字符", "引发TypeError — 字符串是不可变类型，不支持元素赋值", "输出\"深度学习\" — 赋值被忽略，s不变", "输出\"的\" — s被替换为新的字符串\"的\""], "answer": 1, "kp": ["string", "data-type", "slice"], "explanation": "字符串不可变！s[1]=\"的\"会引发TypeError: str object does not support item assignment。", "id": "S5"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">text = \"人工智能基础\"\nsub = text[1:4]\nresult = sub + text[-1]\nprint(len(result), result)</code></pre>\n运行结果是啥？", "options": ["len=4, result=\"工智能础\" — text[1:4]=\"工智能\"，text[-1]=\"础\"", "len=5, result=\"工智能础础\" — text[1:4]已包含最后一个字", "len=4, result=\"能基\" — text[1:4]=\"能基\"", "len=5, result=\"人工智能基\" — text[1:4]=\"工智能基\""], "answer": 0, "kp": ["string", "slice"], "explanation": "text[1:4]=\"工智能\"(左闭右开索引1~3)，text[-1]=\"础\"。result=\"工智能\"+\"础\"=\"工智能础\"，len=4。", "id": "S6"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">a = [1,2,3]\nb = a\na.extend([4,5])\na = a + [6]\nprint(b)</code></pre>\n下面哪个分析是对的？", "options": ["b指向原列表，extend 原地修改了它，所以 b=[1,2,3,4,5]。a=[1,2,3,4,5,6] 是重新绑定", "b=a 做了浅拷贝，b 不受 a 后续操作影响，b=[1,2,3]", "a.extend 和 a+[6] 都修改了同一列表，b=[1,2,3,4,5,6]", "extend 创建新列表返回，a.extend 后 a 变了但 b 仍是 [1,2,3]"], "answer": 0, "kp": ["list", "list-methods", "data-type"], "explanation": "b=a是指向同一列表的别名。extend原地修改→b也变成[1,2,3,4,5]。a=a+[6]创建新列表，b仍指向原列表。", "id": "S7"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">t = (1,2,[3,4])\nt[2].append(5)\nprint(t)</code></pre>\n结果会怎样？", "options": ["元组不可变，t[2] 不可修改，append(5) 报错", "输出 (1,2,[3,4,5]) — t[2] 引用的列表可变，元组的顶层引用不变即可", "输出 (1,2,[3,4]) — append(5) 被元组拦截", "输出 (1,2,5) — append 替换了 t[2] 的值"], "answer": 1, "kp": ["tuple", "list-methods", "data-type"], "explanation": "元组顶层引用不可变(t[2]不能指向新对象)，但引用的列表本身可变。输出(1,2,[3,4,5])。", "id": "S8"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">def calc(a,b=10,c=20):\n    return a + b - c\nprint(calc(5, c=5))</code></pre>\n下面哪种理解对？", "options": ["a=5(位置), b=10(默认), c=5(关键字覆盖)，结果=5+10-5=10", "a=5(位置)，b 未提供则报 TypeError", "a=5, b=10(默认), c=20(默认未被覆盖)，结果=5+10-20=-5", "c=5 的位置不明确，Python 取 c=20 引发 TypeError"], "answer": 0, "kp": ["function-params", "return-none"], "explanation": "a=5位置参数。b未传，采用默认值10。c=5关键字参数覆盖默认20。5+10-5=10。", "id": "S9"}, {"type": "fill", "points": 3, "question": "<pre><code class=\"lang-python\">list(range(2, 10, 3))</code></pre>\n结果是 [<input class=\"fill-inline\" data-idx=\"0\">]。", "answer": [["2,5,8", "2, 5, 8"]], "kp": ["range", "function-params"], "explanation": "从2开始每步+3，不超10：2→5→8→11(超10停)。", "id": "S10"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">class Patient:\n    def __init__(self,name):\n        self.name=name\np1=Patient(\"A\")\np2=Patient(\"A\")\np3=p1\nprint(p1==p2, p1 is p2, p1 is p3)</code></pre>\n下面哪个判断是对的？", "options": ["p1==p2:True(同名)，p1 is p2:False(不同对象)，p1 is p3:True(别名)", "p1==p2:False(默认==比较地址)，p1 is p2:False(不同对象)，p1 is p3:True(别名)", "p1==p2:False(同名但不同人)，p1 is p2:True(实为同一对象)，p1 is p3:False", "p1==p2:True(值相等)，p1 is p2:True(小对象缓存)，p1 is p3:True"], "answer": 1, "kp": ["class", "init-self", "comparison", "oop-basics"], "explanation": "==默认比较内存地址(未定义__eq__)→False。is比较对象身份→不同对象→False。p3=p1→同一对象→True。", "id": "S11"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">class Counter:\n    total = 0\n    def __init__(self):\n        Counter.total += 1\na = Counter()\nb = Counter()\nprint(a.total)\nprint(Counter.total)</code></pre>\n输出是啥？", "options": ["a.total=2, Counter.total=2 — total是类属性，被所有实例共享", "a.total=1, Counter.total=2 — 实例属性覆盖了类属性", "a.total=1, Counter.total=1 — 每次实例化各自独立增加", "a.total报错，Counter.total=2 — 实例不能访问类属性"], "answer": 0, "kp": ["class", "oop-basics"], "explanation": "total是类属性(在类体中定义)，所有实例共享。两次实例化后total=2。a.total和Counter.total都访问同一变量。", "id": "S12"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">for i in range(5):\n    if i == 2:\n        continue\n    print(i, end=\"\")</code></pre>\n结果是？", "options": ["输出01234 — continue对简单循环无影响", "输出0134 — i=2时continue跳过print，进入下一轮", "输出01 — 遇到continue循环终止", "输出012 — continue像break一样跳出循环，剩余不执行"], "answer": 1, "kp": ["control-flow", "break-continue", "range"], "explanation": "i=2时continue跳过当前轮次的print(2)，进入i=3。range(5)=0~4，输出0134。", "id": "S13"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">x=\"10\"; y=5\nprint(x * y)\nprint(int(x) + y)</code></pre>\n运行后输出什么？", "options": ["输出\"50\"和15 — x*y字符串乘法得\"50\"，int(x)+y得15", "输出\"1010101010\"和15 — 字符串乘法重复5次，int(\"10\")+5=15", "输出\"105\"和105 — x*y自动类型转换得105，int(x)+y=105", "报错 — 字符串和整数不能做算术运算"], "answer": 1, "kp": ["data-type", "string", "function"], "explanation": "\"10\"*5字符串重复→\"1010101010\"。int(\"10\")+5=10+5=15。字符串乘整数是合法操作(重复)，但字符串+整数报错。", "id": "S14"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">d = {\"a\":1, \"b\":2}\nprint(d.get(\"c\", 0))\nd[\"c\"] = d.get(\"c\", 0) + 3\nprint(d[\"c\"])</code></pre>\n下面哪个说法对？", "options": ["输出0和3 — get(\"c\",0)返回0。d[\"c\"]=0+3=3", "输出None和3 — 不存在的键get()返回None，d[\"c\"]=None+3报错", "输出0和0 — 第二次get(\"c\",0)返回0因为c刚被设为0", "报错 — d[\"c\"]赋值前不能访问get(\"c\",0)"], "answer": 0, "kp": ["dict", "function"], "explanation": "get(\"c\",0)安全取值返回0。d[\"c\"]=0+3=3。再次d[\"c\"]返回3。", "id": "S15"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">def mystery(a,b,*args):\n    return a,b,sum(args)\nprint(mystery(1,2,3,4,5))</code></pre>\n猜猜结果是什么？", "options": ["返回(1,2,12) — a=1,b=2,*args收集(3,4,5)，sum=12", "返回(1,2,15) — sum(args)=1+2+3+4+5=15", "返回(1,2,10) — sum(args)=3+4+5减去a,b的值", "报错 — 函数定义了3个参数但传了5个参数"], "answer": 0, "kp": ["function-params", "tuple"], "explanation": "a=1,b=2。*args收集多余位置参数→(3,4,5)。sum(3,4,5)=12。返回元组(1,2,12)。", "id": "S16"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">a=[1,2,3]; b=[1,2,3]\nprint(a==b)\nprint(a is b)\nprint(a[0] is b[0])</code></pre>\n下面哪个分析正确？", "options": ["True(值等), False(不同对象), True(小整数[-5,256]被缓存为同一对象)", "True, True, True — a 和 b 内容相同即为同一对象", "False, False, True — 两个列表元素不同，不相等", "True, False, False — 整数也是不同对象，无缓存机制"], "answer": 0, "kp": ["comparison", "list", "data-type"], "explanation": "a==b比较元素值→True(内容相同)。a is b比较地址→False(不同列表对象)。-5到256的小整数被Python缓存→a[0]和b[0]指向同一整数对象1→True。", "id": "S17"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">data = {\"patient\": {\"name\":\"张三\",\"age\":25}}\ninfo = data.get(\"patient\", {})\nprint(info.get(\"name\", \"未知\"))\nprint(info.get(\"gender\", \"未知\"))</code></pre>\n输出是什么？", "options": ["输出\"张三\"和\"未知\" — 嵌套字典安全取值", "输出\"张三\"和报错 — gender键不存在get(\"gender\")报错", "输出\"张三\"和\"未知\" — get()第二参数是默认值，但gender不存在不会触发默认值", "输出\"张\"和\"未\" — 字符串切片截取"], "answer": 0, "kp": ["dict", "function"], "explanation": "data[\"patient\"]是字典{\"name\":\"张三\",\"age\":25}。info.get(\"name\",\"未知\")=\"张三\"。info.get(\"gender\",\"未知\")=\"未知\"(键不存在返回默认值)。", "id": "S18"}, {"type": "mcq", "points": 3, "question": "有个学生在 Jupyter Notebook 里运行了这段代码：\n<pre><code class=\"lang-python\">score = 85\ndef check():\n    score = 90\n    return score\ncheck()\nscore</code></pre>\n他以为屏幕上会显示 90（check() 返回的值），结果看到的却是 85。\n下面哪个分析对？", "options": ["显示 85 — 函数内 score=90 是局部变量，不影响外部 score=85；Notebook 自动显示最后行 score", "显示 90 — 函数内赋值修改了全局变量 score，外部变量随之更新", "显示 90 但顺序输出 85 — Notebook 同时显示 check() 返回值和 score", "无输出 — Notebook 单元格必须用 print() 才能显示内容"], "answer": 0, "kp": ["function", "variable", "notebook-mechanism"], "explanation": "函数内score=90创建局部变量，不影响全局score=85。check()返回90但调用结果未被显示(不是最后行)。score(最后行表达式)→Notebook自动显示85。", "id": "S19"}, {"type": "mcq", "points": 3, "question": "<pre><code class=\"lang-python\">a, b = 1, 2\na, b = b, a + b\nprint(a, b)</code></pre>\n运行结果是什么？", "options": ["输出 2, 3 — 右侧 (2, 1+2) 先计算再赋值，a=2, b=3", "输出 2, 2 — a=b=2 后 a+b=4 赋给 b", "输出 1, 3 — a 不变仍为 1，b 单独变为 3", "输出 1, 2 — Python 不会执行多重赋值中的计算"], "answer": 0, "kp": ["assignment", "data-type"], "explanation": "Python先计算右侧所有表达式(b=2, a+b=1+2=3)，再解包赋值给左侧a,b。输出2 3。", "id": "S20"}];
+var LABELS = {"page_title": "交互式自测卷", "section": {"tf": "一、判断题", "mcq": "二、单选题", "multi": "三、多选题", "fill": "四、填空题", "short": "五、简答题", "calc": "六、计算题", "code": "七、代码题", "essay": "八、问答题", "comprehensive": "九、综合题"}, "section_order": ["tf", "mcq", "multi", "fill", "short", "calc", "code", "essay", "comprehensive"], "points_suffix": "分", "true_label": "正确", "false_label": "错误", "placeholder": "在此作答...", "code_placeholder": "在此编写代码...", "pitfall_prefix": "⚠️ 易错提醒：", "correct_label": "✓ 正确", "wrong_label": "✗ 错误", "partial_label": "部分正确", "answer_prefix": "正确答案：", "reference_label": "参考答案", "grade_button": "提交批改", "graded_label": "✓ 已批改", "reset_button": "重新作答", "toggle_explanation": "展开解析", "hide_explanation": "收起解析", "export_log_button": "⬇ 下载错题日志", "score_label": "总分", "correct_count_label": "正确", "wrong_count_label": "错误", "weak_title": "📚 需要复习的知识点", "kp_prefix": "知识点：", "duration_prefix": "满分 ", "duration_suffix": " 分 | 建议 ", "duration_minutes": " 分钟", "log_saved_message": "✓ 已保存到 ", "log_filename": "错题日志.json"};
+
+// ─── Answer normalization ──────────────────────────────────────────
+// tf / mcq answers may arrive as int, boolean, letter ("A"),
+// or label string ("正确"/"错误"/"对"/"错"). All are coerced to an
+// option index so grading never silently fails on a type mismatch.
+
+function tfAnswerIndex(ans) {
+  if (typeof ans === 'boolean') return ans ? 0 : 1;
+  if (typeof ans === 'number') return ans === 0 ? 0 : 1;
+  var s = ('' + ans).trim().toLowerCase();
+  var truthy = ['0', 't', 'true', '正确', '对', '是', 'yes', 'y', '√', '✓'];
+  var falsy  = ['1', 'f', 'false', '错误', '错', '否', 'no', 'n', '×', 'x'];
+  if (truthy.indexOf(s) !== -1) return 0;
+  if (falsy.indexOf(s) !== -1) return 1;
+  return ans ? 0 : 1;
+}
+
+function choiceAnswerIndex(ans, options) {
+  if (typeof ans === 'number') return ans;
+  var s = ('' + ans).trim();
+  if (/^[A-Za-z]$/.test(s)) return s.toUpperCase().charCodeAt(0) - 65;
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  if (options) {
+    for (var i = 0; i < options.length; i++) {
+      if (('' + options[i]).trim() === s) return i;
+    }
+  }
+  return parseInt(s, 10);
+}
+
+function multiAnswerSet(ans, options) {
+  var arr = Array.isArray(ans) ? ans : [ans];
+  var set = {};
+  for (var i = 0; i < arr.length; i++) {
+    set[choiceAnswerIndex(arr[i], options)] = true;
+  }
+  return set;
+}
+
+function normText(s) {
+  s = ('' + s).trim().toLowerCase();
+  s = s.replace(/[\s　]+/g, '');
+  s = s.replace(/[.,;:!?。，、；：！？“”"'（）()【】\[\]<>《》]/g, '');
+  s = s.replace(/[！-～]/g, function (c) {
+    return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+  });
+  return s;
+}
+
+function fillBlankCount(question) {
+  var m = ('' + question).match(/(_{2,}|＿+)/g);
+  return m ? m.length : 0;
+}
+
+function fillBlankAnswers(ans, nBlanks) {
+  if (nBlanks < 1) nBlanks = 1;
+  if (!Array.isArray(ans)) return padBlanks([[ans]], nBlanks);
+  if (ans.length && Array.isArray(ans[0])) return padBlanks(ans, nBlanks);
+  if (nBlanks === 1) return [ans];
+  if (ans.length === nBlanks) {
+    return ans.map(function (a) { return [a]; });
+  }
+  return padBlanks([ans], nBlanks);
+}
+
+function padBlanks(arr, n) {
+  var out = arr.slice(0, n);
+  while (out.length < n) out.push(['']);
+  return out;
+}
+
+// ─── Render fill inputs ────────────────────────────────────────────
+
+function renderFill(q, qid) {
+  var nBlanks = fillBlankCount(q.question);
+  var k = 0;
+  var html = ('' + q.question).replace(/(_{2,}|＿+)/g, function () {
+    var inp = '<input type="text" class="fill-input" id="fill-' + qid + '-' + k + '" autocomplete="off" spellcheck="false">';
+    k++;
+    return inp;
+  });
+  if (k === 0) {
+    // No markers in text -> append boxes based on answer shape
+    var n = fillBlankAnswers(q.answer, 1).length;
+    var ans = q.answer;
+    if (Array.isArray(ans)) n = Array.isArray(ans[0]) ? ans.length : (ans.length || 1);
+    if (n < 1) n = 1;
+    html += '<div class="fill-row">';
+    for (var b = 0; b < n; b++) {
+      if (n > 1) html += '<span class="fill-tag">' + (b + 1) + '.</span>';
+      html += '<input type="text" class="fill-input" id="fill-' + qid + '-' + b + '" autocomplete="off" spellcheck="false">';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// ─── Build ─────────────────────────────────────────────────────────
+
+function build() {
+  var container = document.getElementById('questions-container');
+  if (!container) { console.error('Quiz Creator: questions-container not found'); return; }
+
+  var order = LABELS.section_order || [];
+  Q.forEach(function (q, i) { q._i = i; });
+  Q.sort(function (a, b) {
+    var oa = order.indexOf(a.type); if (oa === -1) oa = 99;
+    var ob = order.indexOf(b.type); if (ob === -1) ob = 99;
+    return oa - ob || a._i - b._i;
+  });
+
+  var h = '';
+  var sec = '';
+  var titles = LABELS.section;
+
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    if (q.type !== sec) {
+      sec = q.type;
+      if (titles[q.type]) h += '<h2>' + titles[q.type] + '</h2>';
+    }
+
+    var qid = 'q' + i;
+    var pts = q.points || 2;
+    h += '<div class="q-card" id="card-' + qid + '">';
+    h += '<div class="q-num">' + (i + 1) + '. (' + pts + ' ' + LABELS.points_suffix + ')</div>';
+
+    // Question text — fill needs renderFill() to replace ____ with inputs
+    if (q.type === 'fill') {
+      h += '<div class="q-text">' + renderFill(q, qid);
+    } else {
+      h += '<div class="q-text">' + q.question;
+    }
+    if (q.kp && q.kp.length) {
+      h += ' <span class="kp-badge">' + LABELS.kp_prefix + q.kp.join(', ') + '</span>';
+    }
+    h += '</div>';
+
+    if (q.type === 'mcq' || q.type === 'choice') {
+      var opts = q.options || [];
+      for (var j = 0; j < opts.length; j++) {
+        h += '<label class="option" id="opt-' + qid + '-' + j + '" onclick="sel(\'' + qid + '\',' + j + ')">';
+        h += '<input type="radio" name="' + qid + '" value="' + j + '">' + String.fromCharCode(65 + j) + '. ' + opts[j] + '</label>';
+      }
+    } else if (q.type === 'multi') {
+      var mopts = q.options || [];
+      for (var k = 0; k < mopts.length; k++) {
+        h += '<label class="option" id="opt-' + qid + '-' + k + '" onclick="toggle(\'' + qid + '\',' + k + ')">';
+        h += '<input type="checkbox" name="' + qid + '" value="' + k + '">' + String.fromCharCode(65 + k) + '. ' + mopts[k] + '</label>';
+      }
+    } else if (q.type === 'tf') {
+      h += '<label class="option" id="opt-' + qid + '-0" onclick="sel(\'' + qid + '\',0)">';
+      h += '<input type="radio" name="' + qid + '" value="0">' + LABELS.true_label + '</label>';
+      h += '<label class="option" id="opt-' + qid + '-1" onclick="sel(\'' + qid + '\',1)">';
+      h += '<input type="radio" name="' + qid + '" value="1">' + LABELS.false_label + '</label>';
+    } else if (q.type === 'code') {
+      h += '<textarea class="q-textarea q-code" id="text-' + qid + '" placeholder="' + (LABELS.code_placeholder) + '" rows="8" spellcheck="false"></textarea>';
+    } else {
+      h += '<textarea class="q-textarea" id="text-' + qid + '" placeholder="' + LABELS.placeholder + '" rows="3"></textarea>';
+    }
+
+    h += '<div class="result" id="result-' + qid + '">';
+    h += '<span class="badge" id="badge-' + qid + '"></span><span id="correct-' + qid + '"></span>';
+    h += '<div class="explanation">' + (q.explanation || '') + '</div>';
+    if (q.pitfall) {
+      h += '<div class="pitfall">' + LABELS.pitfall_prefix + q.pitfall + '</div>';
+    }
+    h += '</div></div>';
+  }
+
+  container.innerHTML = h;
+  renderMath();
+}
+
+// ─── Selection handlers ────────────────────────────────────────────
+
+function sel(qid, idx) {
+  var prefix = 'opt-' + qid + '-';
+  var all = document.querySelectorAll('[id^="' + prefix + '"]');
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
+  var target = document.getElementById('opt-' + qid + '-' + idx);
+  if (target) target.classList.add('selected');
+  var radio = document.querySelector('input[name="' + qid + '"][value="' + idx + '"]');
+  if (radio) radio.checked = true;
+  updateProgress();
+}
+
+function toggle(qid, idx) {
+  var box = document.querySelector('input[name="' + qid + '"][value="' + idx + '"]');
+  var label = document.getElementById('opt-' + qid + '-' + idx);
+  if (!box) return;
+  box.checked = !box.checked;
+  if (label) label.classList.toggle('selected', box.checked);
+  updateProgress();
+}
+
+function onFillInput(qid) {
+  updateProgress();
+}
+
+// ─── Progress ──────────────────────────────────────────────────────
+
+function updateProgress() {
+  var answered = 0;
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    var qid = 'q' + i;
+    if (q.type === 'tf' || q.type === 'mcq' || q.type === 'choice') {
+      var sel = document.querySelector('input[name="' + qid + '"]:checked');
+      if (sel) answered++;
+    } else if (q.type === 'multi') {
+      var checks = document.querySelectorAll('input[name="' + qid + '"]:checked');
+      if (checks.length > 0) answered++;
+    } else if (q.type === 'fill') {
+      var inputs = document.querySelectorAll('#card-' + qid + ' .fill-input');
+      var any = false;
+      for (var f = 0; f < inputs.length; f++) { if (inputs[f].value.trim()) { any = true; break; } }
+      if (any) answered++;
+    } else {
+      var ta = document.getElementById('text-' + qid);
+      if (ta && ta.value.trim()) answered++;
+    }
+  }
+  var pct = Q.length > 0 ? (answered / Q.length) * 100 : 0;
+  var bar = document.getElementById('progressFill');
+  if (bar) bar.style.width = pct + '%';
+}
+
+// ─── Grading ───────────────────────────────────────────────────────
+
+function gradeAll() {
+  var score = 0, maxScore = 0, correctCount = 0, wrongCount = 0;
+  var weakKPs = {}, wrongItems = [];
+
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    var pts = q.points || 2;
+    maxScore += pts;
+    var qid = 'q' + i;
+    var card = document.getElementById('card-' + qid);
+    var result = document.getElementById('result-' + qid);
+    var badge = document.getElementById('badge-' + qid);
+    var correctEl = document.getElementById('correct-' + qid);
+    if (!card || !result) continue;
+
+    result.style.display = 'block';
+
+    var earned = 0;
+    if (q.type === 'mcq' || q.type === 'choice' || q.type === 'tf') {
+      earned = gradeSingle(q, qid, card, badge, correctEl, pts);
+    } else if (q.type === 'multi') {
+      earned = gradeMulti(q, qid, card, badge, correctEl, pts);
+    } else if (q.type === 'fill') {
+      earned = gradeFill(q, qid, card, badge, correctEl, pts);
+    } else {
+      card.classList.add('correct');
+      badge.className = 'badge badge-ref';
+      badge.textContent = LABELS.reference_label;
+    }
+
+    score += earned;
+    if (earned >= pts) { correctCount++; }
+    else if (earned > 0) { /* partial — counted in wrong */ wrongCount++; }
+    else { wrongCount++; wrongItems.push({ id: q.id || qid, kp: q.kp }); }
+
+    if (q.kp && earned < pts) {
+      for (var k = 0; k < q.kp.length; k++) {
+        weakKPs[q.kp[k]] = (weakKPs[q.kp[k]] || 0) + 1;
+      }
+    }
+
+    // Disable inputs
+    disableCardInputs(card);
+  }
+
+  // Score panel
+  var sb = document.getElementById('score-box');
+  if (sb) {
+    sb.style.display = 'block';
+    document.getElementById('score-num').textContent = roundScore(score);
+    document.getElementById('score-max').textContent = maxScore;
+    document.getElementById('correct-count').textContent = correctCount;
+    document.getElementById('wrong-count').textContent = wrongCount;
+
+    // Weak KPs
+    var ws = document.getElementById('weak-section');
+    if (ws && Object.keys(weakKPs).length > 0) {
+      ws.style.display = 'block';
+      var tags = document.getElementById('kp-tags');
+      tags.innerHTML = Object.keys(weakKPs).sort(function (a, b) { return weakKPs[b] - weakKPs[a]; }).map(function (k) {
+        return '<span class="kp-tag">' + k + ' (' + weakKPs[k] + ')</span>';
+      }).join('');
+    }
+
+    sb.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Buttons
+  document.getElementById('grade-btn').disabled = true;
+  document.getElementById('grade-btn').textContent = LABELS.graded_label;
+  document.getElementById('btn-toggle').style.display = 'inline-block';
+  document.getElementById('btn-reset').style.display = 'inline-block';
+  if (wrongItems.length > 0) {
+    document.getElementById('btn-export').style.display = 'inline-block';
+  }
+
+  // Save log
+  window._lastLogEntry = {
+    source: document.title || 'Quiz',
+    quizId: document.title || 'quiz',
+    date: new Date().toLocaleString('zh-CN'),
+    score: roundScore(score), maxScore: maxScore,
+    accuracy: maxScore > 0 ? roundScore(score / maxScore * 100) + '%' : '0%',
+    wrongKPs: Object.keys(weakKPs), wrongCount: wrongCount,
+    totalQuestions: Q.length, wrongItems: wrongItems
+  };
+
+  renderMath();
+}
+
+function roundScore(s) { return Math.round(s * 10) / 10; }
+
+function disableCardInputs(card) {
+  card.querySelectorAll('input').forEach(function (el) { el.disabled = true; });
+  card.querySelectorAll('.fill-input').forEach(function (el) { el.disabled = true; });
+  card.querySelectorAll('.q-textarea').forEach(function (el) { el.disabled = true; });
+}
+
+function gradeSingle(q, qid, card, badge, correctEl, pts) {
+  var ansIdx = q.type === 'tf' ? tfAnswerIndex(q.answer) : choiceAnswerIndex(q.answer, q.options);
+  var radio = document.querySelector('input[name="' + qid + '"]:checked');
+  if (radio && parseInt(radio.value, 10) === ansIdx) {
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+    correctEl.innerHTML = '';
+    var ok = document.getElementById('opt-' + qid + '-' + ansIdx);
+    if (ok) ok.classList.add('correct-answer');
+    return pts;
+  }
+  card.classList.add('wrong');
+  badge.className = 'badge badge-no';
+  badge.textContent = LABELS.wrong_label;
+  var ansText = (q.type === 'mcq' || q.type === 'choice')
+    ? String.fromCharCode(65 + ansIdx) + '. ' + (q.options ? q.options[ansIdx] : '')
+    : (ansIdx === 0 ? LABELS.true_label : LABELS.false_label);
+  correctEl.innerHTML = LABELS.answer_prefix + ansText;
+  if (radio) {
+    var wrongOpt = document.getElementById('opt-' + qid + '-' + radio.value);
+    if (wrongOpt) wrongOpt.classList.add('wrong-answer');
+  }
+  var corr = document.getElementById('opt-' + qid + '-' + ansIdx);
+  if (corr) corr.classList.add('correct-answer');
+  return 0;
+}
+
+function gradeMulti(q, qid, card, badge, correctEl, pts) {
+  var want = multiAnswerSet(q.answer, q.options);
+  var wantKeys = Object.keys(want).map(Number);
+  var checked = document.querySelectorAll('input[name="' + qid + '"]:checked');
+  var picked = [];
+  for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
+
+  var anyWrong = false, hitCorrect = 0;
+  for (var p = 0; p < picked.length; p++) {
+    if (want[picked[p]]) hitCorrect++;
+    else anyWrong = true;
+  }
+
+  var mopts = q.options || [];
+  for (var j = 0; j < mopts.length; j++) {
+    var el = document.getElementById('opt-' + qid + '-' + j);
+    if (!el) continue;
+    if (want[j]) el.classList.add('correct-answer');
+    else if (picked.indexOf(j) !== -1) el.classList.add('wrong-answer');
+  }
+
+  var earned;
+  if (!anyWrong && hitCorrect === wantKeys.length && picked.length === wantKeys.length) {
+    earned = pts;
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+    correctEl.innerHTML = '';
+  } else if (!anyWrong && hitCorrect > 0) {
+    earned = roundScore(pts * hitCorrect / wantKeys.length);
+    card.classList.add('partial');
+    badge.className = 'badge badge-partial';
+    badge.textContent = LABELS.partial_label;
+    correctEl.innerHTML = LABELS.answer_prefix + multiAnswerText(wantKeys, mopts);
+  } else {
+    earned = 0;
+    card.classList.add('wrong');
+    badge.className = 'badge badge-no';
+    badge.textContent = LABELS.wrong_label;
+    correctEl.innerHTML = LABELS.answer_prefix + multiAnswerText(wantKeys, mopts);
+  }
+  return earned;
+}
+
+function multiAnswerText(keys, options) {
+  return keys.sort(function (a, b) { return a - b; }).map(function (k) {
+    return String.fromCharCode(65 + k) + '. ' + (options ? options[k] : '');
+  }).join('  ');
+}
+
+function gradeFill(q, qid, card, badge, correctEl, pts) {
+  var nBlanks = fillBlankCount(q.question);
+  var blanks = fillBlankAnswers(q.answer, nBlanks);
+  var n = blanks.length;
+  var hit = 0;
+  var displays = [];
+
+  for (var b = 0; b < n; b++) {
+    var inp = document.getElementById('fill-' + qid + '-' + b);
+    var accepted = blanks[b] || [''];
+    var user = inp ? normText(inp.value) : '';
+    var ok = false;
+    for (var a = 0; a < accepted.length; a++) {
+      if (accepted[a] !== '' && normText(accepted[a]) === user && user !== '') { ok = true; break; }
+    }
+    if (inp) inp.classList.add(ok ? 'fill-ok' : 'fill-no');
+    if (ok) hit++;
+    displays.push((n > 1 ? (b + 1) + '. ' : '') + accepted.filter(function (x) { return x !== ''; }).join(' / '));
+  }
+
+  var earned = roundScore(pts * hit / n);
+  correctEl.innerHTML = LABELS.answer_prefix + displays.join('   ');
+
+  if (hit === n) {
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+  } else if (hit > 0) {
+    card.classList.add('partial');
+    badge.className = 'badge badge-partial';
+    badge.textContent = LABELS.partial_label;
+  } else {
+    card.classList.add('wrong');
+    badge.className = 'badge badge-no';
+    badge.textContent = LABELS.wrong_label;
+  }
+  return earned;
+}
+
+// ─── UI Controls ───────────────────────────────────────────────────
+
+function toggleExplanations() {
+  var visible = document.getElementById('btn-toggle').getAttribute('data-visible') === 'true';
+  var els = document.querySelectorAll('.result .explanation');
+  for (var i = 0; i < els.length; i++) {
+    els[i].style.display = visible ? 'none' : 'block';
+  }
+  document.getElementById('btn-toggle').textContent = visible ? LABELS.toggle_explanation : LABELS.hide_explanation;
+  document.getElementById('btn-toggle').setAttribute('data-visible', visible ? 'false' : 'true');
+}
+
+function resetQuiz() {
+  Q.forEach(function (q, i) {
+    var qid = 'q' + i;
+    var card = document.getElementById('card-' + qid);
+    var result = document.getElementById('result-' + qid);
+    if (card) { card.className = 'q-card'; }
+    if (result) { result.style.display = 'none'; }
+    card.querySelectorAll('input').forEach(function (el) { el.checked = false; el.disabled = false; });
+    card.querySelectorAll('.fill-input').forEach(function (el) { el.value = ''; el.disabled = false; el.className = 'fill-input'; });
+    card.querySelectorAll('.q-textarea').forEach(function (el) { el.value = ''; el.disabled = false; });
+    card.querySelectorAll('.option').forEach(function (el) { el.className = 'option'; });
+  });
+
+  document.getElementById('score-box').style.display = 'none';
+  document.getElementById('weak-section').style.display = 'none';
+  document.getElementById('grade-btn').disabled = false;
+  document.getElementById('grade-btn').textContent = LABELS.grade_button;
+  document.getElementById('btn-toggle').style.display = 'none';
+  document.getElementById('btn-reset').style.display = 'none';
+  document.getElementById('btn-export').style.display = 'none';
+  document.getElementById('logStatus').textContent = '';
+  document.getElementById('progressFill').style.width = '0';
+}
+
+// ─── Log Export ────────────────────────────────────────────────────
+
+var _dirHandle = null;
+var LOG_FILENAME = LABELS.log_filename || '错题日志.json';
+var DB_NAME = 'quizLogDB', DB_STORE = 'dirs', DB_KEY = 'logDir';
+
+function idbOpen() {
+  return new Promise(function (resolve, reject) {
+    var r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = function () { r.result.createObjectStore(DB_STORE); };
+    r.onsuccess = function () { resolve(r.result); };
+    r.onerror = function () { reject(r.error); };
+  });
+}
+function idbSave(h) {
+  return idbOpen().then(function (db) {
+    var tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(h, DB_KEY);
+    return new Promise(function (res, rej) { tx.oncomplete = function () { db.close(); res(); }; tx.onerror = function () { db.close(); rej(tx.error); }; });
+  });
+}
+function idbLoad() {
+  return idbOpen().then(function (db) {
+    var tx = db.transaction(DB_STORE, 'readonly');
+    var r = tx.objectStore(DB_STORE).get(DB_KEY);
+    return new Promise(function (res, rej) { r.onsuccess = function () { db.close(); res(r.result); }; r.onerror = function () { db.close(); rej(r.error); }; });
+  });
+}
+
+function writeLogToDisk(entry) {
+  return (idbLoad().then(function (handle) {
+    _dirHandle = handle;
+    if (_dirHandle) {
+      var opts = { mode: 'readwrite' };
+      return _dirHandle.queryPermission(opts).then(function (perm) {
+        if (perm !== 'granted') {
+          return _dirHandle.requestPermission(opts).then(function (p) { if (p !== 'granted') _dirHandle = null; return; });
+        }
+      });
+    }
+  }).then(function () {
+    if (!_dirHandle) {
+      return window.showDirectoryPicker().then(function (h) { _dirHandle = h; return idbSave(h); });
+    }
+  }).then(function () {
+    return _dirHandle.getFileHandle(LOG_FILENAME, { create: true }).then(function (fh) {
+      return fh.getFile().then(function (f) {
+        var existing = [];
+        if (f.size > 0) { return f.text().then(function (t) { try { existing = JSON.parse(t); if (!Array.isArray(existing)) existing = [existing]; } catch(e) {} return existing; }); }
+        return existing;
+      }).then(function (existing) {
+        existing.push(entry);
+        return fh.createWritable().then(function (w) { return w.write(JSON.stringify(existing, null, 2)).then(function () { return w.close(); }); });
+      });
+    });
+  }));
+}
+
+function exportLog() {
+  if (!window._lastLogEntry) return;
+  var entry = window._lastLogEntry;
+  if (!entry.source) entry.source = document.title || 'Quiz';
+
+  if ('showDirectoryPicker' in window) {
+    return writeLogToDisk(entry).then(function () {
+      document.getElementById('logStatus').textContent = LABELS.log_saved_message + LOG_FILENAME;
+    }).catch(function (e) {
+      if (e.name === 'AbortError') return;
+      _dirHandle = null;
+      idbSave(null).catch(function () {});
+      fallbackDownload(entry);
+    });
+  }
+  fallbackDownload(entry);
+}
+
+function fallbackDownload(entry) {
+  var blob = new Blob([JSON.stringify([entry], null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = LOG_FILENAME;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ─── KaTeX ─────────────────────────────────────────────────────────
+
+function renderMath() {
+  if (typeof renderMathInElement !== 'undefined') {
+    try {
+      renderMathInElement(document.getElementById('questions-container') || document.body, {
+        delimiters: [
+          { left: '\\(', right: '\\)', display: false },
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ]
+      });
+    } catch(e) { /* KaTeX may throw on isolated errors */ }
+  } else {
+    setTimeout(renderMath, 300);
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', build);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  build();
+}
+
+// Listen for fill input changes
+document.addEventListener('input', function (e) {
+  if (e.target.classList.contains('fill-input')) {
+    var card = e.target.closest('.q-card');
+    if (card) {
+      var qid = card.id.replace('card-', '');
+      onFillInput(qid);
+    }
+  }
+});
+
+</script>
+</body>
+</html>

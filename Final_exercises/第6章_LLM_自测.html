@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>第6章_LLM_自测</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+/* === Quiz Creator Shared Styles === */
+/* Paper-like warm background, clean typography, responsive */
+
+:root {
+  --paper: #f5f7fa;
+  --paper-dark: #e8ecf1;
+  --ink: #2c2c2c;
+  --ink-light: #555;
+  --accent: #1a5276;
+  --accent-hover: #0d3b5c;
+  --divider: #d0d7de;
+  --card-bg: #fff;
+  --card-border: #dfe3e8;
+  --correct: #27ae60;
+  --correct-bg: #f0fdf4;
+  --wrong: #c0392b;
+  --wrong-bg: #fef2f2;
+  --tag-bg: #fdebd0;
+  --tag-text: #935116;
+  --radius: 6px;
+  --shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+  font-size: 12pt; line-height: 1.75; color: var(--ink);
+  max-width: 860px; margin: auto; padding: 24px 20px 60px;
+  background: var(--paper);
+}
+
+@media print {
+  body { font-size: 10.5pt; background: #fff; }
+  .no-print { display: none !important; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+
+/* ── Header ── */
+#qc-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0; margin-bottom: 0;
+}
+.header-brand { font-size: 1.2em; font-weight: 700; color: var(--accent); letter-spacing: 0.3px; }
+.header-url  { font-size: 0.78em; color: #999; }
+.header-divider { border: none; border-top: 2px solid var(--divider); margin: 4px 0 20px 0; }
+
+/* ── Typography ── */
+h1 { font-size: 1.5em; text-align: center; margin: 0 0 4px 0; }
+h2 { font-size: 1.2em; color: var(--ink); margin: 20px 0 8px; }
+h3 { font-size: 1.05em; margin-top: 18px; color: var(--ink); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Tables ── */
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.95em; }
+td, th { border: 1px solid var(--card-border); padding: 5px 9px; text-align: left; }
+th { background: var(--paper-dark); font-weight: 700; }
+
+/* ── Knowledge point vs explanation ── */
+.kp { font-weight: 700; color: var(--ink); }
+.exp { font-weight: 400; color: var(--ink-light); }
+.exp em, .exp strong { color: var(--ink); }
+
+/* ── Block elements ── */
+blockquote {
+  border-left: 3px solid #c0392b; background: #fef9ef;
+  padding: 6px 14px; margin: 10px 0; font-size: 0.95em;
+}
+code { background: #f0ede0; padding: 2px 5px; border-radius: 3px; font-size: 0.92em; }
+pre code { background: transparent; color: inherit; padding: 0; }
+pre { background: #1e1e2e; color: #e0e0e0; padding: 10px; border-radius: var(--radius); overflow-x: auto; }
+
+/* ── Progress bar ── */
+.progress-bar { height: 6px; background: #ddd; border-radius: 3px; margin: 12px 0; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); width: 0; transition: width .3s; border-radius: 3px; }
+
+/* ── Priority tags ── */
+.tag-must   { background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-key    { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-freq   { background: #dbeafe; color: #1e40af; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-info   { background: #f0fdf4; color: #166534; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+
+/* === Quiz Creator — Interactive Test Styles === */
+
+/* ── Score box ── */
+#score-box {
+  display: none; background: var(--card-bg); color: var(--ink);
+  padding: 16px 20px; border-radius: var(--radius); margin: 14px 0;
+  text-align: center; border: 1px solid var(--card-border); box-shadow: var(--shadow);
+}
+#score-box .score-num { font-size: 2.2em; font-weight: 700; color: var(--accent); }
+#score-box .score-label { font-size: 0.85em; color: var(--ink-light); }
+#score-box .score-detail { margin: 6px 0; font-size: 0.9em; color: var(--ink-light); }
+
+/* ── Weak KPs ── */
+#weak-section { display: none; margin-top: 10px; }
+#weak-section strong { font-size: 0.9em; }
+.kp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
+.kp-tag { background: var(--tag-bg); color: var(--tag-text); padding: 3px 12px; border-radius: 12px; font-size: 0.82em; }
+
+/* ── Question card ── */
+.q-card {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 14px 16px; margin: 10px 0;
+  box-shadow: var(--shadow); transition: all 0.15s;
+  border-left: 4px solid transparent;
+}
+.q-card.correct { border-left-color: var(--correct); background: var(--correct-bg); }
+.q-card.wrong   { border-left-color: var(--wrong); background: var(--wrong-bg); }
+
+.q-num  { font-weight: 700; font-size: 0.95em; margin-bottom: 6px; color: var(--ink-light); }
+.q-text { margin-bottom: 8px; font-size: 0.98em; line-height: 1.7; }
+.q-text .kp-badge { font-size: 0.78em; color: var(--ink-light); margin-left: 8px; }
+
+/* ── Options ── */
+.option {
+  display: block; padding: 5px 10px; margin: 4px 0;
+  border: 1px solid var(--card-border); border-radius: 4px;
+  cursor: pointer; transition: all 0.12s; font-size: 0.93em;
+  background: #fefcf5;
+}
+.option:hover            { background: #f0ede0; }
+.option input            { margin-right: 6px; }
+.option.selected         { border-color: var(--accent); background: #eff6ff; }
+.option.correct-answer   { border-color: var(--correct); background: var(--correct-bg); }
+.option.wrong-answer     { border-color: var(--wrong); background: var(--wrong-bg); }
+
+/* ── Textareas (for short/code) ── */
+.q-textarea {
+  width: 100%; min-height: 56px; border: 1px solid var(--card-border);
+  border-radius: 4px; padding: 6px 10px; font-family: inherit;
+  font-size: 0.93em; background: #fefcf5; resize: vertical;
+}
+.q-textarea:focus { outline: none; border-color: var(--accent); }
+.q-code {
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  font-size: 0.88em; line-height: 1.5; background: #1e1e2e; color: #e0e0e0;
+  tab-size: 4; white-space: pre;
+}
+.q-code:focus { border-color: var(--accent); }
+
+/* ── Fill input ── */
+.fill-input {
+  width: 120px; padding: 3px 8px; border: 1px solid var(--card-border);
+  border-radius: 3px; font-size: 0.95em; text-align: center; background: #fff;
+}
+.fill-input:focus { outline: none; border-color: var(--accent); }
+.fill-input.fill-ok { border-color: var(--correct); background: var(--correct-bg); }
+.fill-input.fill-no { border-color: var(--wrong); background: var(--wrong-bg); }
+.fill-row { margin: 6px 0; }
+.fill-tag { font-weight: 600; margin-right: 4px; font-size: 0.9em; }
+
+/* ── Partial-credit card ── */
+.q-card.partial { border-color: #f59e0b; }
+.badge-partial { background: #fef3c7; color: #92400e; }
+
+/* ── Result after grading ── */
+.result {
+  display: none; margin-top: 8px; padding: 8px 12px;
+  background: #fefcf5; border: 1px solid var(--card-border);
+  border-radius: 4px; font-size: 0.9em; line-height: 1.6;
+}
+.result .badge {
+  display: inline-block; padding: 1px 9px; border-radius: 3px;
+  font-weight: 700; font-size: 0.82em; margin-right: 6px;
+}
+.badge-ok  { background: var(--correct-bg); color: #166534; }
+.badge-no  { background: var(--wrong-bg); color: #991b1b; }
+.badge-ref { background: #dbeafe; color: #1e40af; }
+
+.result .explanation { margin-top: 4px; color: var(--ink); }
+.result .pitfall { color: #b45309; margin-top: 3px; font-size: 0.9em; }
+
+/* ── Grading bar ── */
+.grading-bar { text-align: center; margin: 16px 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.grading-bar button {
+  font-size: 0.95em; padding: 8px 24px; background: var(--accent);
+  color: #fff; border: none; border-radius: var(--radius);
+  cursor: pointer; font-weight: 600; letter-spacing: 0.3px;
+}
+.grading-bar button:hover     { background: var(--accent-hover); }
+.grading-bar button:disabled  { background: #bbb; cursor: not-allowed; }
+.grading-bar .btn-secondary   { background: #7f8c8d; }
+.grading-bar .btn-secondary:hover { background: #6b7a7b; }
+.grading-bar .btn-warning     { background: #e67e22; }
+.grading-bar .btn-warning:hover   { background: #c96d1c; }
+
+/* ── Log status ── */
+#logStatus { font-size: 0.85em; margin-top: 4px; text-align: center; color: var(--ink-light); }
+
+/* ── Print ── */
+.no-print { }
+
+</style>
+</head>
+<body>
+
+<header id="qc-header">
+  <div class="header-left"><span class="header-brand">Quiz Creator</span></div>
+  <div class="header-right"><span class="header-url">生成时间: 2026-06-12 11:57</span></div>
+</header>
+<hr class="header-divider">
+
+<h1>第6章_LLM_自测</h1>
+<p style="text-align:center;color:var(--ink-light);font-size:0.95em">满分 49 分 | 建议 30 分钟</p>
+
+<div class="progress-bar no-print"><div class="progress-fill" id="progressFill"></div></div>
+<div id="score-box">
+  <div class="score-num"><span id="score-num">0</span> / <span id="score-max">49</span></div>
+  <div class="score-label">总分</div>
+  <div class="score-detail">正确: <span id="correct-count">0</span> &nbsp;|&nbsp; 错误: <span id="wrong-count">0</span></div>
+  <div id="weak-section"><strong>📚 需要复习的知识点</strong>
+    <div class="kp-tags" id="kp-tags"></div>
+  </div>
+</div>
+<div id="questions-container"></div>
+<div class="grading-bar no-print">
+  <button onclick="gradeAll()" id="grade-btn">提交批改</button>
+  <button onclick="toggleExplanations()" id="btn-toggle" class="btn-secondary" style="display:none">展开解析</button>
+  <button onclick="resetQuiz()" id="btn-reset" class="btn-warning" style="display:none">重新作答</button>
+  <button onclick="exportLog()" id="btn-export" class="btn-secondary" style="display:none">⬇ 下载错题日志</button>
+</div>
+<div id="logStatus"></div>
+
+<!-- KaTeX JS loaded at the bottom so it doesn't block rendering -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
+
+<script>
+var Q = [{"type": "mcq", "points": 3, "question": "句子中不同注意力头分别关注it->animal的指代和it->tired的因果。这说明多头注意力的核心作用是?", "options": ["加速计算——多头并行比单头串行运算更快", "从多角度捕捉不同类型关系（如指代、因果等）", "替代位置编码——多头机制本身就包含位置信息", "减少参数量——拆分多头比单头参数量更少"], "answer": 1, "kp": ["self-attention", "multi-head", "qkv"], "explanation": "多头注意力中每组QKV学一种关系类型--一个头学指代另一个学因果。", "id": "S1"}, {"type": "tf", "points": 2, "question": "Transformer的自注意力可关注左右两侧,因此具备顺序感知能力无需位置编码。", "answer": false, "kp": ["self-attention", "positional-encoding"], "explanation": "自注意力将所有token视为无序集合(两两相似度与顺序无关)。\"我打你\"和\"你打我\"的相似度矩阵相同。位置编码提供顺序信息。", "id": "S2"}, {"type": "mcq", "points": 3, "question": "自注意力机制中，Q 和 K 点积后经 Softmax 归一化，再与 V 加权求和。如果某个词跟所有其他词的注意力权重都相等（均匀分布），这说明什么？", "options": ["注意力机制未学到有效模式——退化为平均池化", "该词与所有词都相关，是最重要的词", "该词与所有词都有高相关性，说明信息量大", "Q 和 K 完全相等，导致注意力均匀分布"], "answer": 0, "kp": ["self-attention", "qkv"], "explanation": "注意力均匀分布意味着模型无法区分哪些词更重要,注意力机制失效。", "id": "S3"}, {"type": "mcq", "points": 3, "question": "你往一个 Transformer 模型中输入 \"I love AI\"，发现如果先做词嵌入再做位置编码，工作正常；\n但如果先做自注意力再做词嵌入，输出结果完全混乱。\n这说明 Transformer 处理文本的正确步骤顺序是什么？", "options": ["分词 → 词嵌入 → 位置编码 → 自注意力——嵌入必须先于注意力", "自注意力 → 词嵌入 → 位置编码——先理解语义再编码", "位置编码 → 分词 → 词嵌入——位置信号要先于分词", "词嵌入 → 分词 → 位置编码——先转换成向量再切分"], "answer": 0, "kp": ["transformer-flow", "tokenizer", "word-embedding", "positional-encoding"], "explanation": "分词(Tokenizer)→词嵌入(Embedding)→位置编码→自注意力→全连接→输出概率。词嵌入将离散token变为连续向量，位置编码注入顺序信息，然后自注意力才计算关系。", "id": "S4"}, {"type": "mcq", "points": 3, "question": "在一个词表大小为 50000 的模型里，\"医生\"和\"大夫\"的 One-Hot 向量距离和\"医生\"和\"苹果\"的 One-Hot 向量距离完全一样——都是 √2。\n但换成词嵌入后，\"医生\"和\"大夫\"的向量非常接近，\"医生\"和\"苹果\"则相距很远。\n这种差异的根源是什么？", "options": ["One-Hot 维度=词表大小（稀疏），各向量正交无语义关系；词嵌入=小固定值（稠密），语义相近的词向量也接近", "词嵌入的维度更大(50000)，One-Hot 维度更小(如100)——大维度能携带更多语义信息", "One-Hot 编码也能表达语义关系——只是这个模型训练不充分", "词嵌入使用了注意力机制来比较词义，One-Hot 只做简单编码"], "answer": 0, "kp": ["word-embedding", "one-hot-embedding"], "explanation": "One-Hot:维度=词表大小(50000),稀疏,不同词正交(距离=√2),无语义信息。词嵌入:维度=小值(如300),稠密,从共现统计中学到语义,近义词向量距离近。", "id": "S5"}, {"type": "fill", "points": 3, "question": "词表50000,嵌入维度256。词嵌入表参数=<input class=\"fill-inline\" data-idx=\"0\">\nOne-Hot每词向量维度=<input class=\"fill-inline\" data-idx=\"1\">。", "answer": [["12800000", "12,800,000"], ["50000"]], "kp": ["word-embedding", "one-hot-embedding"], "explanation": "50000x256=12,800,000。One-Hot维度=词表大小=50000。", "id": "S6"}, {"type": "mcq", "points": 3, "question": "AI写作工具文章过于保守可预测。想增加创意性最合理的是?", "options": ["降低温度（趋近 0）使输出更确定", "提高温度 + Top-p 采样（p=0.9），增加随机性", "改用贪心搜索，选择概率最高的 token", "关闭注意力机制，使输出不可预测"], "answer": 1, "kp": ["temperature", "top-p", "greedy-search"], "explanation": "温度高->分布均匀->随机性升。Top-p从累积概率p动态集采样。贪心搜索正相反。", "id": "S7"}, {"type": "mcq", "points": 3, "question": "你让 LLM 续写\"秋天的落叶\"，设 k=5 时每次输出 5 个候选词中选，\n但发现排第 5 的词概率经常已接近 0，质量很差。\n换用 p=0.9 后，候选词数量动态变化——有时 3 个有时 8 个，且词质量都还行。\n这两种策略的核心区别是什么？", "options": ["Top-k 固定取 k 个候选（k=5 就是 5 个），Top-p 从累积概率达 p 的动态集合中采样", "Top-k 只看概率最高的词，Top-p 对所有词均匀随机采样", "Top-k 适合短文本，Top-p 适合长文本——应用场景不同", "两者本质相同——k 和 p 参数可以互相换算"], "answer": 0, "kp": ["top-k", "top-p", "greedy-search", "temperature"], "explanation": "Top-k固定k个候选(即使第k个概率已很低)。Top-p从累积概率达p的动态集中采样(概率低的自动排除)，候选数可变。", "id": "S8"}, {"type": "tf", "points": 2, "question": "温度参数趋近0时解码效果等价于均匀随机采样。", "answer": false, "kp": ["temperature", "greedy-search"], "explanation": "温度->0分布退化为one-hot(集中在最高概率token),等价贪心搜索。温度->无穷才近均匀随机。", "id": "S9"}, {"type": "mcq", "points": 3, "question": "你用三种不同解码设置让同一个 LLM 续写故事开头：\n\n设置 A：每次都选概率最高的那一个词\n设置 B：从概率最高的 50 个词中随机选\n设置 C：从累积概率达 90% 的动态候选集中随机选\n\n结果：A 的续写最死板，C 最丰富多变。\n\ntop-p（p=0.9）、贪心搜索、Top-k（k=50）分别对应哪个设置？", "options": ["A=贪心搜索，B=Top-k，C=Top-p", "A=Top-k，B=贪心搜索，C=Top-p", "A=贪心搜索，B=Top-p，C=Top-k", "A=Top-p，B=贪心搜索，C=Top-k"], "answer": 0, "kp": ["greedy-search", "top-k", "top-p"], "explanation": "贪心(始终最高概率)最死板→A。Top-k(固定50候选)居中→B。Top-p(动态集,低概率自动排除)最多样→C。", "id": "S10"}, {"type": "mcq", "points": 3, "question": "LLM看到\"上海的\"预测下一个词可能是\"人口\"\"天气\"等。该能力叫做?", "options": ["自回归预训练——通过预测下一个 token 学习语言规律", "分类任务——将输入文本划分到预定义类别", "监督学习——需要人工标注的输入-输出对", "强化学习——通过奖励信号学习最优策略"], "answer": 0, "kp": ["llm-basics", "autoregressive", "pretraining"], "explanation": "自回归预训练:给定前文预测下一个token(自监督),从海量文本学语言规律。", "id": "S11"}, {"type": "tf", "points": 2, "question": "自回归生成是单向的(只依赖左侧),自注意力是全局双向(可关注左右)。", "answer": true, "kp": ["autoregressive", "self-attention"], "explanation": "自回归(生成时)->只看左边。自注意力(计算时)->看所有token。", "id": "S12"}, {"type": "mcq", "points": 3, "question": "LLM将\"体温38.5C\"错误生成为\"36.5C\"。正确的是?", "options": ["LLM 是概率模型——生成最可能而非最准确的词，无真值判断", "温度太低——输出被过度抑制导致错误", "分词器错误——分词结果异常引起数字错误", "需要重新训练——预训练数据不足导致能力欠缺"], "answer": 0, "kp": ["llm-basics", "autoregressive"], "explanation": "LLM本质是猜词模型,根据上下文预测最可能出现的词,不检索事实。", "id": "S13"}, {"type": "mcq", "points": 3, "question": "\"国王-男人+女人~=王后\"是词嵌入经典运算。低频词效果差原因?", "options": ["词嵌入反映统计共现模式——低频词统计不可靠", "位置编码设计问题——低频词位置表示不准确", "注意力头不够——无法关注到足够多的上下文", "解码策略选择不当——采样方式不适合低频词"], "answer": 0, "kp": ["word-embedding", "llm-basics"], "explanation": "词嵌入捕捉词语共现统计规律。低频词出现少统计不可靠。", "id": "S14"}, {"type": "multi", "points": 3, "question": "以下哪些是生成LLM常见组件?", "options": ["自回归解码", "多头自注意力", "最大池化层", "温度调节解码"], "answer": [0, 1, 3], "kp": ["autoregressive", "self-attention", "multi-head", "temperature"], "explanation": "自回归解码、多头自注意力、温度调节都是LLM组件。最大池化是CNN的。", "id": "S15"}, {"type": "tf", "points": 2, "question": "判断以下说法是否正确：\n1) 分词器将文本转为 token ID\n2) 词嵌入维度总是等于词表大小\n3) 位置编码让模型感知词序\n4) 贪心搜索保证全局最优", "answer": false, "kp": ["tokenizer", "word-embedding", "positional-encoding", "greedy-search"], "explanation": "1)对 2)错(可设小值) 3)对 4)错(局部最优)。整体False。", "id": "S16"}, {"type": "mcq", "points": 3, "question": "LLM内容语法正确但事实错误。最可能的问题是?", "options": ["预训练只学预测词，不区分事实与虚构；指令微调+RLHF 可缓解", "模型层数不够——深层模型更擅长事实记忆", "温度太低——确定性的输出更容易出现事实错误", "分词粒度过粗——无法准确理解输入内容"], "answer": 0, "kp": ["llm-basics", "pretraining", "instruction-tuning"], "explanation": "自回归预训练目标预测下一个词,不区分事实虚构。指令微调+RLHF教模型输出有用准确的回答。", "id": "S17"}, {"type": "tf", "points": 2, "question": "自注意力机制中一个token的Q向量与所有token的K向量计算相似度,决定关注程度。", "answer": true, "kp": ["self-attention", "qkv"], "explanation": "Q查K:每个token的Q与所有token的K做点积->注意力权重->加权V。", "id": "S18"}];
+var LABELS = {"page_title": "交互式自测卷", "section": {"tf": "一、判断题", "mcq": "二、单选题", "multi": "三、多选题", "fill": "四、填空题", "short": "五、简答题", "calc": "六、计算题", "code": "七、代码题", "essay": "八、问答题", "comprehensive": "九、综合题"}, "section_order": ["tf", "mcq", "multi", "fill", "short", "calc", "code", "essay", "comprehensive"], "points_suffix": "分", "true_label": "正确", "false_label": "错误", "placeholder": "在此作答...", "code_placeholder": "在此编写代码...", "pitfall_prefix": "⚠️ 易错提醒：", "correct_label": "✓ 正确", "wrong_label": "✗ 错误", "partial_label": "部分正确", "answer_prefix": "正确答案：", "reference_label": "参考答案", "grade_button": "提交批改", "graded_label": "✓ 已批改", "reset_button": "重新作答", "toggle_explanation": "展开解析", "hide_explanation": "收起解析", "export_log_button": "⬇ 下载错题日志", "score_label": "总分", "correct_count_label": "正确", "wrong_count_label": "错误", "weak_title": "📚 需要复习的知识点", "kp_prefix": "知识点：", "duration_prefix": "满分 ", "duration_suffix": " 分 | 建议 ", "duration_minutes": " 分钟", "log_saved_message": "✓ 已保存到 ", "log_filename": "错题日志.json"};
+
+// ─── Answer normalization ──────────────────────────────────────────
+// tf / mcq answers may arrive as int, boolean, letter ("A"),
+// or label string ("正确"/"错误"/"对"/"错"). All are coerced to an
+// option index so grading never silently fails on a type mismatch.
+
+function tfAnswerIndex(ans) {
+  if (typeof ans === 'boolean') return ans ? 0 : 1;
+  if (typeof ans === 'number') return ans === 0 ? 0 : 1;
+  var s = ('' + ans).trim().toLowerCase();
+  var truthy = ['0', 't', 'true', '正确', '对', '是', 'yes', 'y', '√', '✓'];
+  var falsy  = ['1', 'f', 'false', '错误', '错', '否', 'no', 'n', '×', 'x'];
+  if (truthy.indexOf(s) !== -1) return 0;
+  if (falsy.indexOf(s) !== -1) return 1;
+  return ans ? 0 : 1;
+}
+
+function choiceAnswerIndex(ans, options) {
+  if (typeof ans === 'number') return ans;
+  var s = ('' + ans).trim();
+  if (/^[A-Za-z]$/.test(s)) return s.toUpperCase().charCodeAt(0) - 65;
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  if (options) {
+    for (var i = 0; i < options.length; i++) {
+      if (('' + options[i]).trim() === s) return i;
+    }
+  }
+  return parseInt(s, 10);
+}
+
+function multiAnswerSet(ans, options) {
+  var arr = Array.isArray(ans) ? ans : [ans];
+  var set = {};
+  for (var i = 0; i < arr.length; i++) {
+    set[choiceAnswerIndex(arr[i], options)] = true;
+  }
+  return set;
+}
+
+function normText(s) {
+  s = ('' + s).trim().toLowerCase();
+  s = s.replace(/[\s　]+/g, '');
+  s = s.replace(/[.,;:!?。，、；：！？“”"'（）()【】\[\]<>《》]/g, '');
+  s = s.replace(/[！-～]/g, function (c) {
+    return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+  });
+  return s;
+}
+
+function fillBlankCount(question) {
+  var m = ('' + question).match(/(_{2,}|＿+)/g);
+  return m ? m.length : 0;
+}
+
+function fillBlankAnswers(ans, nBlanks) {
+  if (nBlanks < 1) nBlanks = 1;
+  if (!Array.isArray(ans)) return padBlanks([[ans]], nBlanks);
+  if (ans.length && Array.isArray(ans[0])) return padBlanks(ans, nBlanks);
+  if (nBlanks === 1) return [ans];
+  if (ans.length === nBlanks) {
+    return ans.map(function (a) { return [a]; });
+  }
+  return padBlanks([ans], nBlanks);
+}
+
+function padBlanks(arr, n) {
+  var out = arr.slice(0, n);
+  while (out.length < n) out.push(['']);
+  return out;
+}
+
+// ─── Render fill inputs ────────────────────────────────────────────
+
+function renderFill(q, qid) {
+  var nBlanks = fillBlankCount(q.question);
+  var k = 0;
+  var html = ('' + q.question).replace(/(_{2,}|＿+)/g, function () {
+    var inp = '<input type="text" class="fill-input" id="fill-' + qid + '-' + k + '" autocomplete="off" spellcheck="false">';
+    k++;
+    return inp;
+  });
+  if (k === 0) {
+    // No markers in text -> append boxes based on answer shape
+    var n = fillBlankAnswers(q.answer, 1).length;
+    var ans = q.answer;
+    if (Array.isArray(ans)) n = Array.isArray(ans[0]) ? ans.length : (ans.length || 1);
+    if (n < 1) n = 1;
+    html += '<div class="fill-row">';
+    for (var b = 0; b < n; b++) {
+      if (n > 1) html += '<span class="fill-tag">' + (b + 1) + '.</span>';
+      html += '<input type="text" class="fill-input" id="fill-' + qid + '-' + b + '" autocomplete="off" spellcheck="false">';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// ─── Build ─────────────────────────────────────────────────────────
+
+function build() {
+  var container = document.getElementById('questions-container');
+  if (!container) { console.error('Quiz Creator: questions-container not found'); return; }
+
+  var order = LABELS.section_order || [];
+  Q.forEach(function (q, i) { q._i = i; });
+  Q.sort(function (a, b) {
+    var oa = order.indexOf(a.type); if (oa === -1) oa = 99;
+    var ob = order.indexOf(b.type); if (ob === -1) ob = 99;
+    return oa - ob || a._i - b._i;
+  });
+
+  var h = '';
+  var sec = '';
+  var titles = LABELS.section;
+
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    if (q.type !== sec) {
+      sec = q.type;
+      if (titles[q.type]) h += '<h2>' + titles[q.type] + '</h2>';
+    }
+
+    var qid = 'q' + i;
+    var pts = q.points || 2;
+    h += '<div class="q-card" id="card-' + qid + '">';
+    h += '<div class="q-num">' + (i + 1) + '. (' + pts + ' ' + LABELS.points_suffix + ')</div>';
+
+    // Question text — fill needs renderFill() to replace ____ with inputs
+    if (q.type === 'fill') {
+      h += '<div class="q-text">' + renderFill(q, qid);
+    } else {
+      h += '<div class="q-text">' + q.question;
+    }
+    if (q.kp && q.kp.length) {
+      h += ' <span class="kp-badge">' + LABELS.kp_prefix + q.kp.join(', ') + '</span>';
+    }
+    h += '</div>';
+
+    if (q.type === 'mcq' || q.type === 'choice') {
+      var opts = q.options || [];
+      for (var j = 0; j < opts.length; j++) {
+        h += '<label class="option" id="opt-' + qid + '-' + j + '" onclick="sel(\'' + qid + '\',' + j + ')">';
+        h += '<input type="radio" name="' + qid + '" value="' + j + '">' + String.fromCharCode(65 + j) + '. ' + opts[j] + '</label>';
+      }
+    } else if (q.type === 'multi') {
+      var mopts = q.options || [];
+      for (var k = 0; k < mopts.length; k++) {
+        h += '<label class="option" id="opt-' + qid + '-' + k + '" onclick="toggle(\'' + qid + '\',' + k + ')">';
+        h += '<input type="checkbox" name="' + qid + '" value="' + k + '">' + String.fromCharCode(65 + k) + '. ' + mopts[k] + '</label>';
+      }
+    } else if (q.type === 'tf') {
+      h += '<label class="option" id="opt-' + qid + '-0" onclick="sel(\'' + qid + '\',0)">';
+      h += '<input type="radio" name="' + qid + '" value="0">' + LABELS.true_label + '</label>';
+      h += '<label class="option" id="opt-' + qid + '-1" onclick="sel(\'' + qid + '\',1)">';
+      h += '<input type="radio" name="' + qid + '" value="1">' + LABELS.false_label + '</label>';
+    } else if (q.type === 'code') {
+      h += '<textarea class="q-textarea q-code" id="text-' + qid + '" placeholder="' + (LABELS.code_placeholder) + '" rows="8" spellcheck="false"></textarea>';
+    } else {
+      h += '<textarea class="q-textarea" id="text-' + qid + '" placeholder="' + LABELS.placeholder + '" rows="3"></textarea>';
+    }
+
+    h += '<div class="result" id="result-' + qid + '">';
+    h += '<span class="badge" id="badge-' + qid + '"></span><span id="correct-' + qid + '"></span>';
+    h += '<div class="explanation">' + (q.explanation || '') + '</div>';
+    if (q.pitfall) {
+      h += '<div class="pitfall">' + LABELS.pitfall_prefix + q.pitfall + '</div>';
+    }
+    h += '</div></div>';
+  }
+
+  container.innerHTML = h;
+  renderMath();
+}
+
+// ─── Selection handlers ────────────────────────────────────────────
+
+function sel(qid, idx) {
+  var prefix = 'opt-' + qid + '-';
+  var all = document.querySelectorAll('[id^="' + prefix + '"]');
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
+  var target = document.getElementById('opt-' + qid + '-' + idx);
+  if (target) target.classList.add('selected');
+  var radio = document.querySelector('input[name="' + qid + '"][value="' + idx + '"]');
+  if (radio) radio.checked = true;
+  updateProgress();
+}
+
+function toggle(qid, idx) {
+  var box = document.querySelector('input[name="' + qid + '"][value="' + idx + '"]');
+  var label = document.getElementById('opt-' + qid + '-' + idx);
+  if (!box) return;
+  box.checked = !box.checked;
+  if (label) label.classList.toggle('selected', box.checked);
+  updateProgress();
+}
+
+function onFillInput(qid) {
+  updateProgress();
+}
+
+// ─── Progress ──────────────────────────────────────────────────────
+
+function updateProgress() {
+  var answered = 0;
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    var qid = 'q' + i;
+    if (q.type === 'tf' || q.type === 'mcq' || q.type === 'choice') {
+      var sel = document.querySelector('input[name="' + qid + '"]:checked');
+      if (sel) answered++;
+    } else if (q.type === 'multi') {
+      var checks = document.querySelectorAll('input[name="' + qid + '"]:checked');
+      if (checks.length > 0) answered++;
+    } else if (q.type === 'fill') {
+      var inputs = document.querySelectorAll('#card-' + qid + ' .fill-input');
+      var any = false;
+      for (var f = 0; f < inputs.length; f++) { if (inputs[f].value.trim()) { any = true; break; } }
+      if (any) answered++;
+    } else {
+      var ta = document.getElementById('text-' + qid);
+      if (ta && ta.value.trim()) answered++;
+    }
+  }
+  var pct = Q.length > 0 ? (answered / Q.length) * 100 : 0;
+  var bar = document.getElementById('progressFill');
+  if (bar) bar.style.width = pct + '%';
+}
+
+// ─── Grading ───────────────────────────────────────────────────────
+
+function gradeAll() {
+  var score = 0, maxScore = 0, correctCount = 0, wrongCount = 0;
+  var weakKPs = {}, wrongItems = [];
+
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    var pts = q.points || 2;
+    maxScore += pts;
+    var qid = 'q' + i;
+    var card = document.getElementById('card-' + qid);
+    var result = document.getElementById('result-' + qid);
+    var badge = document.getElementById('badge-' + qid);
+    var correctEl = document.getElementById('correct-' + qid);
+    if (!card || !result) continue;
+
+    result.style.display = 'block';
+
+    var earned = 0;
+    if (q.type === 'mcq' || q.type === 'choice' || q.type === 'tf') {
+      earned = gradeSingle(q, qid, card, badge, correctEl, pts);
+    } else if (q.type === 'multi') {
+      earned = gradeMulti(q, qid, card, badge, correctEl, pts);
+    } else if (q.type === 'fill') {
+      earned = gradeFill(q, qid, card, badge, correctEl, pts);
+    } else {
+      card.classList.add('correct');
+      badge.className = 'badge badge-ref';
+      badge.textContent = LABELS.reference_label;
+    }
+
+    score += earned;
+    if (earned >= pts) { correctCount++; }
+    else if (earned > 0) { /* partial — counted in wrong */ wrongCount++; }
+    else { wrongCount++; wrongItems.push({ id: q.id || qid, kp: q.kp }); }
+
+    if (q.kp && earned < pts) {
+      for (var k = 0; k < q.kp.length; k++) {
+        weakKPs[q.kp[k]] = (weakKPs[q.kp[k]] || 0) + 1;
+      }
+    }
+
+    // Disable inputs
+    disableCardInputs(card);
+  }
+
+  // Score panel
+  var sb = document.getElementById('score-box');
+  if (sb) {
+    sb.style.display = 'block';
+    document.getElementById('score-num').textContent = roundScore(score);
+    document.getElementById('score-max').textContent = maxScore;
+    document.getElementById('correct-count').textContent = correctCount;
+    document.getElementById('wrong-count').textContent = wrongCount;
+
+    // Weak KPs
+    var ws = document.getElementById('weak-section');
+    if (ws && Object.keys(weakKPs).length > 0) {
+      ws.style.display = 'block';
+      var tags = document.getElementById('kp-tags');
+      tags.innerHTML = Object.keys(weakKPs).sort(function (a, b) { return weakKPs[b] - weakKPs[a]; }).map(function (k) {
+        return '<span class="kp-tag">' + k + ' (' + weakKPs[k] + ')</span>';
+      }).join('');
+    }
+
+    sb.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Buttons
+  document.getElementById('grade-btn').disabled = true;
+  document.getElementById('grade-btn').textContent = LABELS.graded_label;
+  document.getElementById('btn-toggle').style.display = 'inline-block';
+  document.getElementById('btn-reset').style.display = 'inline-block';
+  if (wrongItems.length > 0) {
+    document.getElementById('btn-export').style.display = 'inline-block';
+  }
+
+  // Save log
+  window._lastLogEntry = {
+    source: document.title || 'Quiz',
+    quizId: document.title || 'quiz',
+    date: new Date().toLocaleString('zh-CN'),
+    score: roundScore(score), maxScore: maxScore,
+    accuracy: maxScore > 0 ? roundScore(score / maxScore * 100) + '%' : '0%',
+    wrongKPs: Object.keys(weakKPs), wrongCount: wrongCount,
+    totalQuestions: Q.length, wrongItems: wrongItems
+  };
+
+  renderMath();
+}
+
+function roundScore(s) { return Math.round(s * 10) / 10; }
+
+function disableCardInputs(card) {
+  card.querySelectorAll('input').forEach(function (el) { el.disabled = true; });
+  card.querySelectorAll('.fill-input').forEach(function (el) { el.disabled = true; });
+  card.querySelectorAll('.q-textarea').forEach(function (el) { el.disabled = true; });
+}
+
+function gradeSingle(q, qid, card, badge, correctEl, pts) {
+  var ansIdx = q.type === 'tf' ? tfAnswerIndex(q.answer) : choiceAnswerIndex(q.answer, q.options);
+  var radio = document.querySelector('input[name="' + qid + '"]:checked');
+  if (radio && parseInt(radio.value, 10) === ansIdx) {
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+    correctEl.innerHTML = '';
+    var ok = document.getElementById('opt-' + qid + '-' + ansIdx);
+    if (ok) ok.classList.add('correct-answer');
+    return pts;
+  }
+  card.classList.add('wrong');
+  badge.className = 'badge badge-no';
+  badge.textContent = LABELS.wrong_label;
+  var ansText = (q.type === 'mcq' || q.type === 'choice')
+    ? String.fromCharCode(65 + ansIdx) + '. ' + (q.options ? q.options[ansIdx] : '')
+    : (ansIdx === 0 ? LABELS.true_label : LABELS.false_label);
+  correctEl.innerHTML = LABELS.answer_prefix + ansText;
+  if (radio) {
+    var wrongOpt = document.getElementById('opt-' + qid + '-' + radio.value);
+    if (wrongOpt) wrongOpt.classList.add('wrong-answer');
+  }
+  var corr = document.getElementById('opt-' + qid + '-' + ansIdx);
+  if (corr) corr.classList.add('correct-answer');
+  return 0;
+}
+
+function gradeMulti(q, qid, card, badge, correctEl, pts) {
+  var want = multiAnswerSet(q.answer, q.options);
+  var wantKeys = Object.keys(want).map(Number);
+  var checked = document.querySelectorAll('input[name="' + qid + '"]:checked');
+  var picked = [];
+  for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
+
+  var anyWrong = false, hitCorrect = 0;
+  for (var p = 0; p < picked.length; p++) {
+    if (want[picked[p]]) hitCorrect++;
+    else anyWrong = true;
+  }
+
+  var mopts = q.options || [];
+  for (var j = 0; j < mopts.length; j++) {
+    var el = document.getElementById('opt-' + qid + '-' + j);
+    if (!el) continue;
+    if (want[j]) el.classList.add('correct-answer');
+    else if (picked.indexOf(j) !== -1) el.classList.add('wrong-answer');
+  }
+
+  var earned;
+  if (!anyWrong && hitCorrect === wantKeys.length && picked.length === wantKeys.length) {
+    earned = pts;
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+    correctEl.innerHTML = '';
+  } else if (!anyWrong && hitCorrect > 0) {
+    earned = roundScore(pts * hitCorrect / wantKeys.length);
+    card.classList.add('partial');
+    badge.className = 'badge badge-partial';
+    badge.textContent = LABELS.partial_label;
+    correctEl.innerHTML = LABELS.answer_prefix + multiAnswerText(wantKeys, mopts);
+  } else {
+    earned = 0;
+    card.classList.add('wrong');
+    badge.className = 'badge badge-no';
+    badge.textContent = LABELS.wrong_label;
+    correctEl.innerHTML = LABELS.answer_prefix + multiAnswerText(wantKeys, mopts);
+  }
+  return earned;
+}
+
+function multiAnswerText(keys, options) {
+  return keys.sort(function (a, b) { return a - b; }).map(function (k) {
+    return String.fromCharCode(65 + k) + '. ' + (options ? options[k] : '');
+  }).join('  ');
+}
+
+function gradeFill(q, qid, card, badge, correctEl, pts) {
+  var nBlanks = fillBlankCount(q.question);
+  var blanks = fillBlankAnswers(q.answer, nBlanks);
+  var n = blanks.length;
+  var hit = 0;
+  var displays = [];
+
+  for (var b = 0; b < n; b++) {
+    var inp = document.getElementById('fill-' + qid + '-' + b);
+    var accepted = blanks[b] || [''];
+    var user = inp ? normText(inp.value) : '';
+    var ok = false;
+    for (var a = 0; a < accepted.length; a++) {
+      if (accepted[a] !== '' && normText(accepted[a]) === user && user !== '') { ok = true; break; }
+    }
+    if (inp) inp.classList.add(ok ? 'fill-ok' : 'fill-no');
+    if (ok) hit++;
+    displays.push((n > 1 ? (b + 1) + '. ' : '') + accepted.filter(function (x) { return x !== ''; }).join(' / '));
+  }
+
+  var earned = roundScore(pts * hit / n);
+  correctEl.innerHTML = LABELS.answer_prefix + displays.join('   ');
+
+  if (hit === n) {
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+  } else if (hit > 0) {
+    card.classList.add('partial');
+    badge.className = 'badge badge-partial';
+    badge.textContent = LABELS.partial_label;
+  } else {
+    card.classList.add('wrong');
+    badge.className = 'badge badge-no';
+    badge.textContent = LABELS.wrong_label;
+  }
+  return earned;
+}
+
+// ─── UI Controls ───────────────────────────────────────────────────
+
+function toggleExplanations() {
+  var visible = document.getElementById('btn-toggle').getAttribute('data-visible') === 'true';
+  var els = document.querySelectorAll('.result .explanation');
+  for (var i = 0; i < els.length; i++) {
+    els[i].style.display = visible ? 'none' : 'block';
+  }
+  document.getElementById('btn-toggle').textContent = visible ? LABELS.toggle_explanation : LABELS.hide_explanation;
+  document.getElementById('btn-toggle').setAttribute('data-visible', visible ? 'false' : 'true');
+}
+
+function resetQuiz() {
+  Q.forEach(function (q, i) {
+    var qid = 'q' + i;
+    var card = document.getElementById('card-' + qid);
+    var result = document.getElementById('result-' + qid);
+    if (card) { card.className = 'q-card'; }
+    if (result) { result.style.display = 'none'; }
+    card.querySelectorAll('input').forEach(function (el) { el.checked = false; el.disabled = false; });
+    card.querySelectorAll('.fill-input').forEach(function (el) { el.value = ''; el.disabled = false; el.className = 'fill-input'; });
+    card.querySelectorAll('.q-textarea').forEach(function (el) { el.value = ''; el.disabled = false; });
+    card.querySelectorAll('.option').forEach(function (el) { el.className = 'option'; });
+  });
+
+  document.getElementById('score-box').style.display = 'none';
+  document.getElementById('weak-section').style.display = 'none';
+  document.getElementById('grade-btn').disabled = false;
+  document.getElementById('grade-btn').textContent = LABELS.grade_button;
+  document.getElementById('btn-toggle').style.display = 'none';
+  document.getElementById('btn-reset').style.display = 'none';
+  document.getElementById('btn-export').style.display = 'none';
+  document.getElementById('logStatus').textContent = '';
+  document.getElementById('progressFill').style.width = '0';
+}
+
+// ─── Log Export ────────────────────────────────────────────────────
+
+var _dirHandle = null;
+var LOG_FILENAME = LABELS.log_filename || '错题日志.json';
+var DB_NAME = 'quizLogDB', DB_STORE = 'dirs', DB_KEY = 'logDir';
+
+function idbOpen() {
+  return new Promise(function (resolve, reject) {
+    var r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = function () { r.result.createObjectStore(DB_STORE); };
+    r.onsuccess = function () { resolve(r.result); };
+    r.onerror = function () { reject(r.error); };
+  });
+}
+function idbSave(h) {
+  return idbOpen().then(function (db) {
+    var tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(h, DB_KEY);
+    return new Promise(function (res, rej) { tx.oncomplete = function () { db.close(); res(); }; tx.onerror = function () { db.close(); rej(tx.error); }; });
+  });
+}
+function idbLoad() {
+  return idbOpen().then(function (db) {
+    var tx = db.transaction(DB_STORE, 'readonly');
+    var r = tx.objectStore(DB_STORE).get(DB_KEY);
+    return new Promise(function (res, rej) { r.onsuccess = function () { db.close(); res(r.result); }; r.onerror = function () { db.close(); rej(r.error); }; });
+  });
+}
+
+function writeLogToDisk(entry) {
+  return (idbLoad().then(function (handle) {
+    _dirHandle = handle;
+    if (_dirHandle) {
+      var opts = { mode: 'readwrite' };
+      return _dirHandle.queryPermission(opts).then(function (perm) {
+        if (perm !== 'granted') {
+          return _dirHandle.requestPermission(opts).then(function (p) { if (p !== 'granted') _dirHandle = null; return; });
+        }
+      });
+    }
+  }).then(function () {
+    if (!_dirHandle) {
+      return window.showDirectoryPicker().then(function (h) { _dirHandle = h; return idbSave(h); });
+    }
+  }).then(function () {
+    return _dirHandle.getFileHandle(LOG_FILENAME, { create: true }).then(function (fh) {
+      return fh.getFile().then(function (f) {
+        var existing = [];
+        if (f.size > 0) { return f.text().then(function (t) { try { existing = JSON.parse(t); if (!Array.isArray(existing)) existing = [existing]; } catch(e) {} return existing; }); }
+        return existing;
+      }).then(function (existing) {
+        existing.push(entry);
+        return fh.createWritable().then(function (w) { return w.write(JSON.stringify(existing, null, 2)).then(function () { return w.close(); }); });
+      });
+    });
+  }));
+}
+
+function exportLog() {
+  if (!window._lastLogEntry) return;
+  var entry = window._lastLogEntry;
+  if (!entry.source) entry.source = document.title || 'Quiz';
+
+  if ('showDirectoryPicker' in window) {
+    return writeLogToDisk(entry).then(function () {
+      document.getElementById('logStatus').textContent = LABELS.log_saved_message + LOG_FILENAME;
+    }).catch(function (e) {
+      if (e.name === 'AbortError') return;
+      _dirHandle = null;
+      idbSave(null).catch(function () {});
+      fallbackDownload(entry);
+    });
+  }
+  fallbackDownload(entry);
+}
+
+function fallbackDownload(entry) {
+  var blob = new Blob([JSON.stringify([entry], null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = LOG_FILENAME;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ─── KaTeX ─────────────────────────────────────────────────────────
+
+function renderMath() {
+  if (typeof renderMathInElement !== 'undefined') {
+    try {
+      renderMathInElement(document.getElementById('questions-container') || document.body, {
+        delimiters: [
+          { left: '\\(', right: '\\)', display: false },
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ]
+      });
+    } catch(e) { /* KaTeX may throw on isolated errors */ }
+  } else {
+    setTimeout(renderMath, 300);
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', build);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  build();
+}
+
+// Listen for fill input changes
+document.addEventListener('input', function (e) {
+  if (e.target.classList.contains('fill-input')) {
+    var card = e.target.closest('.q-card');
+    if (card) {
+      var qid = card.id.replace('card-', '');
+      onFillInput(qid);
+    }
+  }
+});
+
+</script>
+</body>
+</html>

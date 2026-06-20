@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>第5章_YOLO_自测</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+/* === Quiz Creator Shared Styles === */
+/* Paper-like warm background, clean typography, responsive */
+
+:root {
+  --paper: #f5f7fa;
+  --paper-dark: #e8ecf1;
+  --ink: #2c2c2c;
+  --ink-light: #555;
+  --accent: #1a5276;
+  --accent-hover: #0d3b5c;
+  --divider: #d0d7de;
+  --card-bg: #fff;
+  --card-border: #dfe3e8;
+  --correct: #27ae60;
+  --correct-bg: #f0fdf4;
+  --wrong: #c0392b;
+  --wrong-bg: #fef2f2;
+  --tag-bg: #fdebd0;
+  --tag-text: #935116;
+  --radius: 6px;
+  --shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+  font-size: 12pt; line-height: 1.75; color: var(--ink);
+  max-width: 860px; margin: auto; padding: 24px 20px 60px;
+  background: var(--paper);
+}
+
+@media print {
+  body { font-size: 10.5pt; background: #fff; }
+  .no-print { display: none !important; }
+  h1, h2, h3 { page-break-after: avoid; }
+}
+
+/* ── Header ── */
+#qc-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0; margin-bottom: 0;
+}
+.header-brand { font-size: 1.2em; font-weight: 700; color: var(--accent); letter-spacing: 0.3px; }
+.header-url  { font-size: 0.78em; color: #999; }
+.header-divider { border: none; border-top: 2px solid var(--divider); margin: 4px 0 20px 0; }
+
+/* ── Typography ── */
+h1 { font-size: 1.5em; text-align: center; margin: 0 0 4px 0; }
+h2 { font-size: 1.2em; color: var(--ink); margin: 20px 0 8px; }
+h3 { font-size: 1.05em; margin-top: 18px; color: var(--ink); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Tables ── */
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.95em; }
+td, th { border: 1px solid var(--card-border); padding: 5px 9px; text-align: left; }
+th { background: var(--paper-dark); font-weight: 700; }
+
+/* ── Knowledge point vs explanation ── */
+.kp { font-weight: 700; color: var(--ink); }
+.exp { font-weight: 400; color: var(--ink-light); }
+.exp em, .exp strong { color: var(--ink); }
+
+/* ── Block elements ── */
+blockquote {
+  border-left: 3px solid #c0392b; background: #fef9ef;
+  padding: 6px 14px; margin: 10px 0; font-size: 0.95em;
+}
+code { background: #f0ede0; padding: 2px 5px; border-radius: 3px; font-size: 0.92em; }
+pre code { background: transparent; color: inherit; padding: 0; }
+pre { background: #1e1e2e; color: #e0e0e0; padding: 10px; border-radius: var(--radius); overflow-x: auto; }
+
+/* ── Progress bar ── */
+.progress-bar { height: 6px; background: #ddd; border-radius: 3px; margin: 12px 0; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); width: 0; transition: width .3s; border-radius: 3px; }
+
+/* ── Priority tags ── */
+.tag-must   { background: #fee2e2; color: #991b1b; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-key    { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-freq   { background: #dbeafe; color: #1e40af; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+.tag-info   { background: #f0fdf4; color: #166534; padding: 1px 6px; border-radius: 3px; font-size: 0.82em; font-weight: 600; }
+
+/* === Quiz Creator — Interactive Test Styles === */
+
+/* ── Score box ── */
+#score-box {
+  display: none; background: var(--card-bg); color: var(--ink);
+  padding: 16px 20px; border-radius: var(--radius); margin: 14px 0;
+  text-align: center; border: 1px solid var(--card-border); box-shadow: var(--shadow);
+}
+#score-box .score-num { font-size: 2.2em; font-weight: 700; color: var(--accent); }
+#score-box .score-label { font-size: 0.85em; color: var(--ink-light); }
+#score-box .score-detail { margin: 6px 0; font-size: 0.9em; color: var(--ink-light); }
+
+/* ── Weak KPs ── */
+#weak-section { display: none; margin-top: 10px; }
+#weak-section strong { font-size: 0.9em; }
+.kp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
+.kp-tag { background: var(--tag-bg); color: var(--tag-text); padding: 3px 12px; border-radius: 12px; font-size: 0.82em; }
+
+/* ── Question card ── */
+.q-card {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: var(--radius); padding: 14px 16px; margin: 10px 0;
+  box-shadow: var(--shadow); transition: all 0.15s;
+  border-left: 4px solid transparent;
+}
+.q-card.correct { border-left-color: var(--correct); background: var(--correct-bg); }
+.q-card.wrong   { border-left-color: var(--wrong); background: var(--wrong-bg); }
+
+.q-num  { font-weight: 700; font-size: 0.95em; margin-bottom: 6px; color: var(--ink-light); }
+.q-text { margin-bottom: 8px; font-size: 0.98em; line-height: 1.7; }
+.q-text .kp-badge { font-size: 0.78em; color: var(--ink-light); margin-left: 8px; }
+
+/* ── Options ── */
+.option {
+  display: block; padding: 5px 10px; margin: 4px 0;
+  border: 1px solid var(--card-border); border-radius: 4px;
+  cursor: pointer; transition: all 0.12s; font-size: 0.93em;
+  background: #fefcf5;
+}
+.option:hover            { background: #f0ede0; }
+.option input            { margin-right: 6px; }
+.option.selected         { border-color: var(--accent); background: #eff6ff; }
+.option.correct-answer   { border-color: var(--correct); background: var(--correct-bg); }
+.option.wrong-answer     { border-color: var(--wrong); background: var(--wrong-bg); }
+
+/* ── Textareas (for short/code) ── */
+.q-textarea {
+  width: 100%; min-height: 56px; border: 1px solid var(--card-border);
+  border-radius: 4px; padding: 6px 10px; font-family: inherit;
+  font-size: 0.93em; background: #fefcf5; resize: vertical;
+}
+.q-textarea:focus { outline: none; border-color: var(--accent); }
+.q-code {
+  font-family: "Consolas", "Monaco", "Courier New", monospace;
+  font-size: 0.88em; line-height: 1.5; background: #1e1e2e; color: #e0e0e0;
+  tab-size: 4; white-space: pre;
+}
+.q-code:focus { border-color: var(--accent); }
+
+/* ── Fill input ── */
+.fill-input {
+  width: 120px; padding: 3px 8px; border: 1px solid var(--card-border);
+  border-radius: 3px; font-size: 0.95em; text-align: center; background: #fff;
+}
+.fill-input:focus { outline: none; border-color: var(--accent); }
+.fill-input.fill-ok { border-color: var(--correct); background: var(--correct-bg); }
+.fill-input.fill-no { border-color: var(--wrong); background: var(--wrong-bg); }
+.fill-row { margin: 6px 0; }
+.fill-tag { font-weight: 600; margin-right: 4px; font-size: 0.9em; }
+
+/* ── Partial-credit card ── */
+.q-card.partial { border-color: #f59e0b; }
+.badge-partial { background: #fef3c7; color: #92400e; }
+
+/* ── Result after grading ── */
+.result {
+  display: none; margin-top: 8px; padding: 8px 12px;
+  background: #fefcf5; border: 1px solid var(--card-border);
+  border-radius: 4px; font-size: 0.9em; line-height: 1.6;
+}
+.result .badge {
+  display: inline-block; padding: 1px 9px; border-radius: 3px;
+  font-weight: 700; font-size: 0.82em; margin-right: 6px;
+}
+.badge-ok  { background: var(--correct-bg); color: #166534; }
+.badge-no  { background: var(--wrong-bg); color: #991b1b; }
+.badge-ref { background: #dbeafe; color: #1e40af; }
+
+.result .explanation { margin-top: 4px; color: var(--ink); }
+.result .pitfall { color: #b45309; margin-top: 3px; font-size: 0.9em; }
+
+/* ── Grading bar ── */
+.grading-bar { text-align: center; margin: 16px 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.grading-bar button {
+  font-size: 0.95em; padding: 8px 24px; background: var(--accent);
+  color: #fff; border: none; border-radius: var(--radius);
+  cursor: pointer; font-weight: 600; letter-spacing: 0.3px;
+}
+.grading-bar button:hover     { background: var(--accent-hover); }
+.grading-bar button:disabled  { background: #bbb; cursor: not-allowed; }
+.grading-bar .btn-secondary   { background: #7f8c8d; }
+.grading-bar .btn-secondary:hover { background: #6b7a7b; }
+.grading-bar .btn-warning     { background: #e67e22; }
+.grading-bar .btn-warning:hover   { background: #c96d1c; }
+
+/* ── Log status ── */
+#logStatus { font-size: 0.85em; margin-top: 4px; text-align: center; color: var(--ink-light); }
+
+/* ── Print ── */
+.no-print { }
+
+</style>
+</head>
+<body>
+
+<header id="qc-header">
+  <div class="header-left"><span class="header-brand">Quiz Creator</span></div>
+  <div class="header-right"><span class="header-url">生成时间: 2026-06-12 11:52</span></div>
+</header>
+<hr class="header-divider">
+
+<h1>第5章_YOLO_自测</h1>
+<p style="text-align:center;color:var(--ink-light);font-size:0.95em">满分 45 分 | 建议 30 分钟</p>
+
+<div class="progress-bar no-print"><div class="progress-fill" id="progressFill"></div></div>
+<div id="score-box">
+  <div class="score-num"><span id="score-num">0</span> / <span id="score-max">45</span></div>
+  <div class="score-label">总分</div>
+  <div class="score-detail">正确: <span id="correct-count">0</span> &nbsp;|&nbsp; 错误: <span id="wrong-count">0</span></div>
+  <div id="weak-section"><strong>📚 需要复习的知识点</strong>
+    <div class="kp-tags" id="kp-tags"></div>
+  </div>
+</div>
+<div id="questions-container"></div>
+<div class="grading-bar no-print">
+  <button onclick="gradeAll()" id="grade-btn">提交批改</button>
+  <button onclick="toggleExplanations()" id="btn-toggle" class="btn-secondary" style="display:none">展开解析</button>
+  <button onclick="resetQuiz()" id="btn-reset" class="btn-warning" style="display:none">重新作答</button>
+  <button onclick="exportLog()" id="btn-export" class="btn-secondary" style="display:none">⬇ 下载错题日志</button>
+</div>
+<div id="logStatus"></div>
+
+<!-- KaTeX JS loaded at the bottom so it doesn't block rendering -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
+
+<script>
+var Q = [{"type": "fill", "points": 3, "question": "一张 800×600 的图片，归一化标签为 [2, 0.5, 0.4, 0.3, 0.25]。请计算中心 x 坐标和宽度（以像素为单位）。", "answer": [["400", "400像素"], ["240", "240像素"]], "kp": ["yolo-label", "normalization"], "explanation": "x=0.5x800=400; w=0.3x800=240。y=0.4x600=240; h=0.25x600=150。", "id": "S1"}, {"type": "mcq", "points": 3, "question": "一张 640×480 的图片，目标框左上角 (60,40)、右下角 (300,280)。它的归一化标签（x_center, y_center, w, h）是多少？", "options": ["x=180/640=0.281, y=160/480=0.333, w=240/640=0.375, h=240/480=0.5", "x=60/640=0.094, y=40/480=0.083——只用左上角坐标", "w 无需归一化，直接使用原始像素宽度 240 即可", "h 归一化=240/640=0.375——高度方向误用图像宽度归一化"], "answer": 0, "kp": ["yolo-label", "normalization", "classification-localization"], "explanation": "中心=(180,160),w=240,h=240。归一化:坐标除以对应尺寸。", "id": "S2"}, {"type": "mcq", "points": 3, "question": "NMS 的执行步骤是：1) 按置信度排序 2) 取置信度最高的框，删除 IOU 超过阈值的其他框 3) 重复。如果把 IOU 阈值设得太低（比如 0.1），会导致什么后果？", "options": ["几乎不删除——低阈值使 NMS 更宽容", "过于激进去除——相邻不同目标被误判为重复（漏检）", "NMS 不工作——阈值超出有效范围", "只保留置信度最高的一个框——彻底去重"], "answer": 1, "kp": ["nms", "iou", "confidence"], "explanation": "NMS阈值低->IOU稍高就被视为重复->相邻目标误删。应设IOU阈值0.3-0.5。", "id": "S3"}, {"type": "mcq", "points": 3, "question": "用 YOLO 检测一张图片，模型输出了 5 个检测框，但图片里其实只有 3 个目标。最可能的原因是什么？", "options": ["IOU 阈值设得太高——难以剔除重复框", "NMS 阈值太低，无法有效去重——重复框被保留", "置信度阈值设得太高——大量框被过滤掉", "模型过拟合——过拟合导致输出不稳定"], "answer": 1, "kp": ["nms", "iou", "confidence"], "explanation": "多余框可能是同一目标重复检测。NMS阈值太低要求重叠度高才删除。", "id": "S4"}, {"type": "mcq", "points": 3, "question": "在不同的应用场景中选择检测算法，以下哪个决策是合理的？", "options": ["手术导航实时→YOLO；卫星高精度定位→Faster R-CNN", "全部场景都选 YOLO——速度优先", "全部场景都选 Faster R-CNN——精度优先", "手术导航应选二阶段检测器以保证精度"], "answer": 0, "kp": ["one-stage", "two-stage"], "explanation": "YOLO快(实时),Faster R-CNN准(精度优先),按需选择。", "id": "S5"}, {"type": "tf", "points": 2, "question": "YOLO单阶段一步完成分类+定位;Faster R-CNN二阶段先提候选区再分类定位。", "answer": true, "kp": ["one-stage", "two-stage"], "explanation": "单阶段=一步到位(快略粗)。二阶段=先粗筛再细筛(慢精细)。", "id": "S6"}, {"type": "mcq", "points": 3, "question": "同一个目标被两个检测框命中：A 的置信度 0.9（IOU=0.6），B 的置信度 0.6（IOU=0.9）。下面哪个分析正确？", "options": ["A 更好——置信度 0.9 高于 B 的 0.6", "B 更好——IOU=0.9 比 A 的 IOU=0.6 更贴合目标", "置信度 = P(obj)×IOU_pred，两框 IOU_pred 不同，各有所长", "置信度不包含 IOU 信息，无法反映定位精度"], "answer": 2, "kp": ["confidence", "iou"], "explanation": "置信度=P(obj)*IOU_pred。A的IOU_pred=0.6,B的=0.9。同目标P(obj)同但IOU_pred不同。", "id": "S7"}, {"type": "multi", "points": 3, "question": "一个完整的目标检测推理流程，包含以下哪些步骤？", "options": ["图像预处理", "模型推理出检测框", "NMS后处理去重", "语义分割"], "answer": [0, 1, 2], "kp": ["object-detection", "nms", "normalization"], "explanation": "预处理->推理->NMS。语义分割是另一任务。", "id": "S8"}, {"type": "tf", "points": 2, "question": "置信度0.9时保留框数一定少于0.5时。", "answer": true, "kp": ["confidence"], "explanation": "阈值越高保留框越少,Recall降,Precision可能升。", "id": "S9"}, {"type": "mcq", "points": 3, "question": "判断以下四条关于目标检测的说法，其中有几条是错误的？\n1) IOU 衡量两个框的重叠程度\n2) NMS 在训练中会更新参数\n3) mAP 是各类别 AP 的平均值\n4) 单阶段检测比二阶段精度更高", "options": ["1个", "2个", "3个", "4个"], "answer": 1, "kp": ["iou", "nms", "map", "one-stage", "two-stage"], "explanation": "1)对 2)错(NMS后处理) 3)对 4)错(单阶段快但精度略低)。2个错。", "id": "S10"}, {"type": "mcq", "points": 3, "question": "你用 YOLO 检测一张肺部 CT，模型返回了以下结果：\n<pre><code>[{ \"class\": \"结节\", \"bbox\": [0.1,0.2,0.3,0.4], \"confidence\": 0.85 }]</code></pre>\n你定位到了结节（bbox），也知道它有 85% 的置信度是结节。\n但你想进一步判断这个结节的表面是光滑还是毛刺状——却发现模型没有给出这类信息。\n这是因为目标检测的输出天生不包含什么？", "options": ["像素深度/纹理信息——目标检测只输出类别 + 边界框 + 置信度", "类别的具体概率——置信度不能反映分类的详细概率分布", "边界框的旋转角度——YOLO 只能输出水平正框", "图像的分辨率元数据——分辨率信息需要单独从原图获取"], "answer": 0, "kp": ["object-detection", "classification-localization", "confidence"], "explanation": "目标检测=分类(类别)+定位(bbox)+置信度。纹理/深度/表面特征属于语义分割或专用分类任务，目标检测不输出。", "id": "S11"}, {"type": "multi", "points": 3, "question": "以下说法错误的有?", "options": ["YOLO是二阶段", "IOU越小框越吻合", "置信度阈值高降低召回率", "NMS去除重复框"], "answer": [0, 1], "kp": ["one-stage", "two-stage", "iou", "confidence", "nms"], "explanation": "1)YOLO是单阶段 2)IOU越大越吻合。3)对 4)对。", "id": "S12"}, {"type": "mcq", "points": 3, "question": "手术导航实时识别器械。最合理设计?", "options": ["YOLO + 置信度 0.5，需实时且器械特征明显", "Faster R-CNN + 0.9——精度优先，速度可牺牲", "只做图像分类，不做目标检测", "YOLO + 0.99——极低漏检要求"], "answer": 0, "kp": ["one-stage", "two-stage", "confidence", "object-detection"], "explanation": "手术导航需实时->YOLO。0.5平衡精度/召回。特征明显YOLO够用。0.99漏检。", "id": "S13"}, {"type": "tf", "points": 2, "question": "[类别,x,y,w,h]中(x,y)是归一化后中心坐标,(w,h)是归一化后宽高。", "answer": true, "kp": ["classification-localization", "yolo-label", "normalization"], "explanation": "YOLO格式:类别+归一化中心+归一化宽高。", "id": "S14"}, {"type": "mcq", "points": 3, "question": "标签 [2, 0.1, 0.5, 0.3, 0.2] 对应一张 800×600 的图像，该边界框的像素面积约为多少？", "options": ["240x120=28800", "80x300=24000", "算不出面积", "0.3x0.2=0.06"], "answer": 0, "kp": ["yolo-label", "normalization"], "explanation": "w=0.3x800=240,h=0.2x600=120。面积=240x120=28800。", "id": "S15"}, {"type": "mcq", "points": 3, "question": "两个检测框都命中了同一个目标：\n框 A 置信度 0.9（边框与目标贴合一般），\n框 B 置信度 0.7（边框与目标贴合很好）。\n目测框 B 的定位比框 A 准，但框 A 的置信度反而更高。\n这种现象说明置信度由哪两个因素共同决定？", "options": ["目标存在概率 × 定位精度——框 A 存在概率高但定位精度低，框 B 反过来", "只由目标存在概率决定——定位精度不影响置信度", "只由定位精度决定——存在概率不影响置信度", "置信度是模型随机输出的，没有明确公式定义"], "answer": 0, "kp": ["confidence", "iou"], "explanation": "置信度 = P(object) × IOU_pred。框A: P(obj)高但框贴合一般→IOU_pred适中→乘积0.9。框B: P(obj)可能较低但框贴合好→IOU_pred高→乘积0.7。", "id": "S16"}];
+var LABELS = {"page_title": "交互式自测卷", "section": {"tf": "一、判断题", "mcq": "二、单选题", "multi": "三、多选题", "fill": "四、填空题", "short": "五、简答题", "calc": "六、计算题", "code": "七、代码题", "essay": "八、问答题", "comprehensive": "九、综合题"}, "section_order": ["tf", "mcq", "multi", "fill", "short", "calc", "code", "essay", "comprehensive"], "points_suffix": "分", "true_label": "正确", "false_label": "错误", "placeholder": "在此作答...", "code_placeholder": "在此编写代码...", "pitfall_prefix": "⚠️ 易错提醒：", "correct_label": "✓ 正确", "wrong_label": "✗ 错误", "partial_label": "部分正确", "answer_prefix": "正确答案：", "reference_label": "参考答案", "grade_button": "提交批改", "graded_label": "✓ 已批改", "reset_button": "重新作答", "toggle_explanation": "展开解析", "hide_explanation": "收起解析", "export_log_button": "⬇ 下载错题日志", "score_label": "总分", "correct_count_label": "正确", "wrong_count_label": "错误", "weak_title": "📚 需要复习的知识点", "kp_prefix": "知识点：", "duration_prefix": "满分 ", "duration_suffix": " 分 | 建议 ", "duration_minutes": " 分钟", "log_saved_message": "✓ 已保存到 ", "log_filename": "错题日志.json"};
+
+// ─── Answer normalization ──────────────────────────────────────────
+// tf / mcq answers may arrive as int, boolean, letter ("A"),
+// or label string ("正确"/"错误"/"对"/"错"). All are coerced to an
+// option index so grading never silently fails on a type mismatch.
+
+function tfAnswerIndex(ans) {
+  if (typeof ans === 'boolean') return ans ? 0 : 1;
+  if (typeof ans === 'number') return ans === 0 ? 0 : 1;
+  var s = ('' + ans).trim().toLowerCase();
+  var truthy = ['0', 't', 'true', '正确', '对', '是', 'yes', 'y', '√', '✓'];
+  var falsy  = ['1', 'f', 'false', '错误', '错', '否', 'no', 'n', '×', 'x'];
+  if (truthy.indexOf(s) !== -1) return 0;
+  if (falsy.indexOf(s) !== -1) return 1;
+  return ans ? 0 : 1;
+}
+
+function choiceAnswerIndex(ans, options) {
+  if (typeof ans === 'number') return ans;
+  var s = ('' + ans).trim();
+  if (/^[A-Za-z]$/.test(s)) return s.toUpperCase().charCodeAt(0) - 65;
+  if (/^\d+$/.test(s)) return parseInt(s, 10);
+  if (options) {
+    for (var i = 0; i < options.length; i++) {
+      if (('' + options[i]).trim() === s) return i;
+    }
+  }
+  return parseInt(s, 10);
+}
+
+function multiAnswerSet(ans, options) {
+  var arr = Array.isArray(ans) ? ans : [ans];
+  var set = {};
+  for (var i = 0; i < arr.length; i++) {
+    set[choiceAnswerIndex(arr[i], options)] = true;
+  }
+  return set;
+}
+
+function normText(s) {
+  s = ('' + s).trim().toLowerCase();
+  s = s.replace(/[\s　]+/g, '');
+  s = s.replace(/[.,;:!?。，、；：！？“”"'（）()【】\[\]<>《》]/g, '');
+  s = s.replace(/[！-～]/g, function (c) {
+    return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+  });
+  return s;
+}
+
+function fillBlankCount(question) {
+  var m = ('' + question).match(/(_{2,}|＿+)/g);
+  return m ? m.length : 0;
+}
+
+function fillBlankAnswers(ans, nBlanks) {
+  if (nBlanks < 1) nBlanks = 1;
+  if (!Array.isArray(ans)) return padBlanks([[ans]], nBlanks);
+  if (ans.length && Array.isArray(ans[0])) return padBlanks(ans, nBlanks);
+  if (nBlanks === 1) return [ans];
+  if (ans.length === nBlanks) {
+    return ans.map(function (a) { return [a]; });
+  }
+  return padBlanks([ans], nBlanks);
+}
+
+function padBlanks(arr, n) {
+  var out = arr.slice(0, n);
+  while (out.length < n) out.push(['']);
+  return out;
+}
+
+// ─── Render fill inputs ────────────────────────────────────────────
+
+function renderFill(q, qid) {
+  var nBlanks = fillBlankCount(q.question);
+  var k = 0;
+  var html = ('' + q.question).replace(/(_{2,}|＿+)/g, function () {
+    var inp = '<input type="text" class="fill-input" id="fill-' + qid + '-' + k + '" autocomplete="off" spellcheck="false">';
+    k++;
+    return inp;
+  });
+  if (k === 0) {
+    // No markers in text -> append boxes based on answer shape
+    var n = fillBlankAnswers(q.answer, 1).length;
+    var ans = q.answer;
+    if (Array.isArray(ans)) n = Array.isArray(ans[0]) ? ans.length : (ans.length || 1);
+    if (n < 1) n = 1;
+    html += '<div class="fill-row">';
+    for (var b = 0; b < n; b++) {
+      if (n > 1) html += '<span class="fill-tag">' + (b + 1) + '.</span>';
+      html += '<input type="text" class="fill-input" id="fill-' + qid + '-' + b + '" autocomplete="off" spellcheck="false">';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// ─── Build ─────────────────────────────────────────────────────────
+
+function build() {
+  var container = document.getElementById('questions-container');
+  if (!container) { console.error('Quiz Creator: questions-container not found'); return; }
+
+  var order = LABELS.section_order || [];
+  Q.forEach(function (q, i) { q._i = i; });
+  Q.sort(function (a, b) {
+    var oa = order.indexOf(a.type); if (oa === -1) oa = 99;
+    var ob = order.indexOf(b.type); if (ob === -1) ob = 99;
+    return oa - ob || a._i - b._i;
+  });
+
+  var h = '';
+  var sec = '';
+  var titles = LABELS.section;
+
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    if (q.type !== sec) {
+      sec = q.type;
+      if (titles[q.type]) h += '<h2>' + titles[q.type] + '</h2>';
+    }
+
+    var qid = 'q' + i;
+    var pts = q.points || 2;
+    h += '<div class="q-card" id="card-' + qid + '">';
+    h += '<div class="q-num">' + (i + 1) + '. (' + pts + ' ' + LABELS.points_suffix + ')</div>';
+
+    // Question text — fill needs renderFill() to replace ____ with inputs
+    if (q.type === 'fill') {
+      h += '<div class="q-text">' + renderFill(q, qid);
+    } else {
+      h += '<div class="q-text">' + q.question;
+    }
+    if (q.kp && q.kp.length) {
+      h += ' <span class="kp-badge">' + LABELS.kp_prefix + q.kp.join(', ') + '</span>';
+    }
+    h += '</div>';
+
+    if (q.type === 'mcq' || q.type === 'choice') {
+      var opts = q.options || [];
+      for (var j = 0; j < opts.length; j++) {
+        h += '<label class="option" id="opt-' + qid + '-' + j + '" onclick="sel(\'' + qid + '\',' + j + ')">';
+        h += '<input type="radio" name="' + qid + '" value="' + j + '">' + String.fromCharCode(65 + j) + '. ' + opts[j] + '</label>';
+      }
+    } else if (q.type === 'multi') {
+      var mopts = q.options || [];
+      for (var k = 0; k < mopts.length; k++) {
+        h += '<label class="option" id="opt-' + qid + '-' + k + '" onclick="toggle(\'' + qid + '\',' + k + ')">';
+        h += '<input type="checkbox" name="' + qid + '" value="' + k + '">' + String.fromCharCode(65 + k) + '. ' + mopts[k] + '</label>';
+      }
+    } else if (q.type === 'tf') {
+      h += '<label class="option" id="opt-' + qid + '-0" onclick="sel(\'' + qid + '\',0)">';
+      h += '<input type="radio" name="' + qid + '" value="0">' + LABELS.true_label + '</label>';
+      h += '<label class="option" id="opt-' + qid + '-1" onclick="sel(\'' + qid + '\',1)">';
+      h += '<input type="radio" name="' + qid + '" value="1">' + LABELS.false_label + '</label>';
+    } else if (q.type === 'code') {
+      h += '<textarea class="q-textarea q-code" id="text-' + qid + '" placeholder="' + (LABELS.code_placeholder) + '" rows="8" spellcheck="false"></textarea>';
+    } else {
+      h += '<textarea class="q-textarea" id="text-' + qid + '" placeholder="' + LABELS.placeholder + '" rows="3"></textarea>';
+    }
+
+    h += '<div class="result" id="result-' + qid + '">';
+    h += '<span class="badge" id="badge-' + qid + '"></span><span id="correct-' + qid + '"></span>';
+    h += '<div class="explanation">' + (q.explanation || '') + '</div>';
+    if (q.pitfall) {
+      h += '<div class="pitfall">' + LABELS.pitfall_prefix + q.pitfall + '</div>';
+    }
+    h += '</div></div>';
+  }
+
+  container.innerHTML = h;
+  renderMath();
+}
+
+// ─── Selection handlers ────────────────────────────────────────────
+
+function sel(qid, idx) {
+  var prefix = 'opt-' + qid + '-';
+  var all = document.querySelectorAll('[id^="' + prefix + '"]');
+  for (var i = 0; i < all.length; i++) all[i].classList.remove('selected');
+  var target = document.getElementById('opt-' + qid + '-' + idx);
+  if (target) target.classList.add('selected');
+  var radio = document.querySelector('input[name="' + qid + '"][value="' + idx + '"]');
+  if (radio) radio.checked = true;
+  updateProgress();
+}
+
+function toggle(qid, idx) {
+  var box = document.querySelector('input[name="' + qid + '"][value="' + idx + '"]');
+  var label = document.getElementById('opt-' + qid + '-' + idx);
+  if (!box) return;
+  box.checked = !box.checked;
+  if (label) label.classList.toggle('selected', box.checked);
+  updateProgress();
+}
+
+function onFillInput(qid) {
+  updateProgress();
+}
+
+// ─── Progress ──────────────────────────────────────────────────────
+
+function updateProgress() {
+  var answered = 0;
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    var qid = 'q' + i;
+    if (q.type === 'tf' || q.type === 'mcq' || q.type === 'choice') {
+      var sel = document.querySelector('input[name="' + qid + '"]:checked');
+      if (sel) answered++;
+    } else if (q.type === 'multi') {
+      var checks = document.querySelectorAll('input[name="' + qid + '"]:checked');
+      if (checks.length > 0) answered++;
+    } else if (q.type === 'fill') {
+      var inputs = document.querySelectorAll('#card-' + qid + ' .fill-input');
+      var any = false;
+      for (var f = 0; f < inputs.length; f++) { if (inputs[f].value.trim()) { any = true; break; } }
+      if (any) answered++;
+    } else {
+      var ta = document.getElementById('text-' + qid);
+      if (ta && ta.value.trim()) answered++;
+    }
+  }
+  var pct = Q.length > 0 ? (answered / Q.length) * 100 : 0;
+  var bar = document.getElementById('progressFill');
+  if (bar) bar.style.width = pct + '%';
+}
+
+// ─── Grading ───────────────────────────────────────────────────────
+
+function gradeAll() {
+  var score = 0, maxScore = 0, correctCount = 0, wrongCount = 0;
+  var weakKPs = {}, wrongItems = [];
+
+  for (var i = 0; i < Q.length; i++) {
+    var q = Q[i];
+    var pts = q.points || 2;
+    maxScore += pts;
+    var qid = 'q' + i;
+    var card = document.getElementById('card-' + qid);
+    var result = document.getElementById('result-' + qid);
+    var badge = document.getElementById('badge-' + qid);
+    var correctEl = document.getElementById('correct-' + qid);
+    if (!card || !result) continue;
+
+    result.style.display = 'block';
+
+    var earned = 0;
+    if (q.type === 'mcq' || q.type === 'choice' || q.type === 'tf') {
+      earned = gradeSingle(q, qid, card, badge, correctEl, pts);
+    } else if (q.type === 'multi') {
+      earned = gradeMulti(q, qid, card, badge, correctEl, pts);
+    } else if (q.type === 'fill') {
+      earned = gradeFill(q, qid, card, badge, correctEl, pts);
+    } else {
+      card.classList.add('correct');
+      badge.className = 'badge badge-ref';
+      badge.textContent = LABELS.reference_label;
+    }
+
+    score += earned;
+    if (earned >= pts) { correctCount++; }
+    else if (earned > 0) { /* partial — counted in wrong */ wrongCount++; }
+    else { wrongCount++; wrongItems.push({ id: q.id || qid, kp: q.kp }); }
+
+    if (q.kp && earned < pts) {
+      for (var k = 0; k < q.kp.length; k++) {
+        weakKPs[q.kp[k]] = (weakKPs[q.kp[k]] || 0) + 1;
+      }
+    }
+
+    // Disable inputs
+    disableCardInputs(card);
+  }
+
+  // Score panel
+  var sb = document.getElementById('score-box');
+  if (sb) {
+    sb.style.display = 'block';
+    document.getElementById('score-num').textContent = roundScore(score);
+    document.getElementById('score-max').textContent = maxScore;
+    document.getElementById('correct-count').textContent = correctCount;
+    document.getElementById('wrong-count').textContent = wrongCount;
+
+    // Weak KPs
+    var ws = document.getElementById('weak-section');
+    if (ws && Object.keys(weakKPs).length > 0) {
+      ws.style.display = 'block';
+      var tags = document.getElementById('kp-tags');
+      tags.innerHTML = Object.keys(weakKPs).sort(function (a, b) { return weakKPs[b] - weakKPs[a]; }).map(function (k) {
+        return '<span class="kp-tag">' + k + ' (' + weakKPs[k] + ')</span>';
+      }).join('');
+    }
+
+    sb.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Buttons
+  document.getElementById('grade-btn').disabled = true;
+  document.getElementById('grade-btn').textContent = LABELS.graded_label;
+  document.getElementById('btn-toggle').style.display = 'inline-block';
+  document.getElementById('btn-reset').style.display = 'inline-block';
+  if (wrongItems.length > 0) {
+    document.getElementById('btn-export').style.display = 'inline-block';
+  }
+
+  // Save log
+  window._lastLogEntry = {
+    source: document.title || 'Quiz',
+    quizId: document.title || 'quiz',
+    date: new Date().toLocaleString('zh-CN'),
+    score: roundScore(score), maxScore: maxScore,
+    accuracy: maxScore > 0 ? roundScore(score / maxScore * 100) + '%' : '0%',
+    wrongKPs: Object.keys(weakKPs), wrongCount: wrongCount,
+    totalQuestions: Q.length, wrongItems: wrongItems
+  };
+
+  renderMath();
+}
+
+function roundScore(s) { return Math.round(s * 10) / 10; }
+
+function disableCardInputs(card) {
+  card.querySelectorAll('input').forEach(function (el) { el.disabled = true; });
+  card.querySelectorAll('.fill-input').forEach(function (el) { el.disabled = true; });
+  card.querySelectorAll('.q-textarea').forEach(function (el) { el.disabled = true; });
+}
+
+function gradeSingle(q, qid, card, badge, correctEl, pts) {
+  var ansIdx = q.type === 'tf' ? tfAnswerIndex(q.answer) : choiceAnswerIndex(q.answer, q.options);
+  var radio = document.querySelector('input[name="' + qid + '"]:checked');
+  if (radio && parseInt(radio.value, 10) === ansIdx) {
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+    correctEl.innerHTML = '';
+    var ok = document.getElementById('opt-' + qid + '-' + ansIdx);
+    if (ok) ok.classList.add('correct-answer');
+    return pts;
+  }
+  card.classList.add('wrong');
+  badge.className = 'badge badge-no';
+  badge.textContent = LABELS.wrong_label;
+  var ansText = (q.type === 'mcq' || q.type === 'choice')
+    ? String.fromCharCode(65 + ansIdx) + '. ' + (q.options ? q.options[ansIdx] : '')
+    : (ansIdx === 0 ? LABELS.true_label : LABELS.false_label);
+  correctEl.innerHTML = LABELS.answer_prefix + ansText;
+  if (radio) {
+    var wrongOpt = document.getElementById('opt-' + qid + '-' + radio.value);
+    if (wrongOpt) wrongOpt.classList.add('wrong-answer');
+  }
+  var corr = document.getElementById('opt-' + qid + '-' + ansIdx);
+  if (corr) corr.classList.add('correct-answer');
+  return 0;
+}
+
+function gradeMulti(q, qid, card, badge, correctEl, pts) {
+  var want = multiAnswerSet(q.answer, q.options);
+  var wantKeys = Object.keys(want).map(Number);
+  var checked = document.querySelectorAll('input[name="' + qid + '"]:checked');
+  var picked = [];
+  for (var i = 0; i < checked.length; i++) picked.push(parseInt(checked[i].value, 10));
+
+  var anyWrong = false, hitCorrect = 0;
+  for (var p = 0; p < picked.length; p++) {
+    if (want[picked[p]]) hitCorrect++;
+    else anyWrong = true;
+  }
+
+  var mopts = q.options || [];
+  for (var j = 0; j < mopts.length; j++) {
+    var el = document.getElementById('opt-' + qid + '-' + j);
+    if (!el) continue;
+    if (want[j]) el.classList.add('correct-answer');
+    else if (picked.indexOf(j) !== -1) el.classList.add('wrong-answer');
+  }
+
+  var earned;
+  if (!anyWrong && hitCorrect === wantKeys.length && picked.length === wantKeys.length) {
+    earned = pts;
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+    correctEl.innerHTML = '';
+  } else if (!anyWrong && hitCorrect > 0) {
+    earned = roundScore(pts * hitCorrect / wantKeys.length);
+    card.classList.add('partial');
+    badge.className = 'badge badge-partial';
+    badge.textContent = LABELS.partial_label;
+    correctEl.innerHTML = LABELS.answer_prefix + multiAnswerText(wantKeys, mopts);
+  } else {
+    earned = 0;
+    card.classList.add('wrong');
+    badge.className = 'badge badge-no';
+    badge.textContent = LABELS.wrong_label;
+    correctEl.innerHTML = LABELS.answer_prefix + multiAnswerText(wantKeys, mopts);
+  }
+  return earned;
+}
+
+function multiAnswerText(keys, options) {
+  return keys.sort(function (a, b) { return a - b; }).map(function (k) {
+    return String.fromCharCode(65 + k) + '. ' + (options ? options[k] : '');
+  }).join('  ');
+}
+
+function gradeFill(q, qid, card, badge, correctEl, pts) {
+  var nBlanks = fillBlankCount(q.question);
+  var blanks = fillBlankAnswers(q.answer, nBlanks);
+  var n = blanks.length;
+  var hit = 0;
+  var displays = [];
+
+  for (var b = 0; b < n; b++) {
+    var inp = document.getElementById('fill-' + qid + '-' + b);
+    var accepted = blanks[b] || [''];
+    var user = inp ? normText(inp.value) : '';
+    var ok = false;
+    for (var a = 0; a < accepted.length; a++) {
+      if (accepted[a] !== '' && normText(accepted[a]) === user && user !== '') { ok = true; break; }
+    }
+    if (inp) inp.classList.add(ok ? 'fill-ok' : 'fill-no');
+    if (ok) hit++;
+    displays.push((n > 1 ? (b + 1) + '. ' : '') + accepted.filter(function (x) { return x !== ''; }).join(' / '));
+  }
+
+  var earned = roundScore(pts * hit / n);
+  correctEl.innerHTML = LABELS.answer_prefix + displays.join('   ');
+
+  if (hit === n) {
+    card.classList.add('correct');
+    badge.className = 'badge badge-ok';
+    badge.textContent = LABELS.correct_label;
+  } else if (hit > 0) {
+    card.classList.add('partial');
+    badge.className = 'badge badge-partial';
+    badge.textContent = LABELS.partial_label;
+  } else {
+    card.classList.add('wrong');
+    badge.className = 'badge badge-no';
+    badge.textContent = LABELS.wrong_label;
+  }
+  return earned;
+}
+
+// ─── UI Controls ───────────────────────────────────────────────────
+
+function toggleExplanations() {
+  var visible = document.getElementById('btn-toggle').getAttribute('data-visible') === 'true';
+  var els = document.querySelectorAll('.result .explanation');
+  for (var i = 0; i < els.length; i++) {
+    els[i].style.display = visible ? 'none' : 'block';
+  }
+  document.getElementById('btn-toggle').textContent = visible ? LABELS.toggle_explanation : LABELS.hide_explanation;
+  document.getElementById('btn-toggle').setAttribute('data-visible', visible ? 'false' : 'true');
+}
+
+function resetQuiz() {
+  Q.forEach(function (q, i) {
+    var qid = 'q' + i;
+    var card = document.getElementById('card-' + qid);
+    var result = document.getElementById('result-' + qid);
+    if (card) { card.className = 'q-card'; }
+    if (result) { result.style.display = 'none'; }
+    card.querySelectorAll('input').forEach(function (el) { el.checked = false; el.disabled = false; });
+    card.querySelectorAll('.fill-input').forEach(function (el) { el.value = ''; el.disabled = false; el.className = 'fill-input'; });
+    card.querySelectorAll('.q-textarea').forEach(function (el) { el.value = ''; el.disabled = false; });
+    card.querySelectorAll('.option').forEach(function (el) { el.className = 'option'; });
+  });
+
+  document.getElementById('score-box').style.display = 'none';
+  document.getElementById('weak-section').style.display = 'none';
+  document.getElementById('grade-btn').disabled = false;
+  document.getElementById('grade-btn').textContent = LABELS.grade_button;
+  document.getElementById('btn-toggle').style.display = 'none';
+  document.getElementById('btn-reset').style.display = 'none';
+  document.getElementById('btn-export').style.display = 'none';
+  document.getElementById('logStatus').textContent = '';
+  document.getElementById('progressFill').style.width = '0';
+}
+
+// ─── Log Export ────────────────────────────────────────────────────
+
+var _dirHandle = null;
+var LOG_FILENAME = LABELS.log_filename || '错题日志.json';
+var DB_NAME = 'quizLogDB', DB_STORE = 'dirs', DB_KEY = 'logDir';
+
+function idbOpen() {
+  return new Promise(function (resolve, reject) {
+    var r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = function () { r.result.createObjectStore(DB_STORE); };
+    r.onsuccess = function () { resolve(r.result); };
+    r.onerror = function () { reject(r.error); };
+  });
+}
+function idbSave(h) {
+  return idbOpen().then(function (db) {
+    var tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(h, DB_KEY);
+    return new Promise(function (res, rej) { tx.oncomplete = function () { db.close(); res(); }; tx.onerror = function () { db.close(); rej(tx.error); }; });
+  });
+}
+function idbLoad() {
+  return idbOpen().then(function (db) {
+    var tx = db.transaction(DB_STORE, 'readonly');
+    var r = tx.objectStore(DB_STORE).get(DB_KEY);
+    return new Promise(function (res, rej) { r.onsuccess = function () { db.close(); res(r.result); }; r.onerror = function () { db.close(); rej(r.error); }; });
+  });
+}
+
+function writeLogToDisk(entry) {
+  return (idbLoad().then(function (handle) {
+    _dirHandle = handle;
+    if (_dirHandle) {
+      var opts = { mode: 'readwrite' };
+      return _dirHandle.queryPermission(opts).then(function (perm) {
+        if (perm !== 'granted') {
+          return _dirHandle.requestPermission(opts).then(function (p) { if (p !== 'granted') _dirHandle = null; return; });
+        }
+      });
+    }
+  }).then(function () {
+    if (!_dirHandle) {
+      return window.showDirectoryPicker().then(function (h) { _dirHandle = h; return idbSave(h); });
+    }
+  }).then(function () {
+    return _dirHandle.getFileHandle(LOG_FILENAME, { create: true }).then(function (fh) {
+      return fh.getFile().then(function (f) {
+        var existing = [];
+        if (f.size > 0) { return f.text().then(function (t) { try { existing = JSON.parse(t); if (!Array.isArray(existing)) existing = [existing]; } catch(e) {} return existing; }); }
+        return existing;
+      }).then(function (existing) {
+        existing.push(entry);
+        return fh.createWritable().then(function (w) { return w.write(JSON.stringify(existing, null, 2)).then(function () { return w.close(); }); });
+      });
+    });
+  }));
+}
+
+function exportLog() {
+  if (!window._lastLogEntry) return;
+  var entry = window._lastLogEntry;
+  if (!entry.source) entry.source = document.title || 'Quiz';
+
+  if ('showDirectoryPicker' in window) {
+    return writeLogToDisk(entry).then(function () {
+      document.getElementById('logStatus').textContent = LABELS.log_saved_message + LOG_FILENAME;
+    }).catch(function (e) {
+      if (e.name === 'AbortError') return;
+      _dirHandle = null;
+      idbSave(null).catch(function () {});
+      fallbackDownload(entry);
+    });
+  }
+  fallbackDownload(entry);
+}
+
+function fallbackDownload(entry) {
+  var blob = new Blob([JSON.stringify([entry], null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = LOG_FILENAME;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ─── KaTeX ─────────────────────────────────────────────────────────
+
+function renderMath() {
+  if (typeof renderMathInElement !== 'undefined') {
+    try {
+      renderMathInElement(document.getElementById('questions-container') || document.body, {
+        delimiters: [
+          { left: '\\(', right: '\\)', display: false },
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false }
+        ]
+      });
+    } catch(e) { /* KaTeX may throw on isolated errors */ }
+  } else {
+    setTimeout(renderMath, 300);
+  }
+}
+
+// ─── Init ──────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', build);
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  build();
+}
+
+// Listen for fill input changes
+document.addEventListener('input', function (e) {
+  if (e.target.classList.contains('fill-input')) {
+    var card = e.target.closest('.q-card');
+    if (card) {
+      var qid = card.id.replace('card-', '');
+      onFillInput(qid);
+    }
+  }
+});
+
+</script>
+</body>
+</html>
